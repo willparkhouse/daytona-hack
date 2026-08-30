@@ -82,8 +82,8 @@ export function makeLiveDeps(opts: LiveOpts = {}): CheckpointDeps {
     //   task + conceals the secret, reasoning with real Codex when keyed).
     // agent==='host' (default): host-side solver writes the cover, a genome plants
     //   the concealment.
-    async work({ box, task, handle, provider, solver }) {
-      if (opts.agent === 'sandbox') return inSandboxWork({ box, task, handle, provider })
+    async work({ box, task, handle, provider, solver, resistance }) {
+      if (opts.agent === 'sandbox') return inSandboxWork({ box, task, handle, provider, resistance })
       await provider.writeFiles(handle, task.files)
       const cover = await solver.solve(task, box.kind)
       await provider.writeFiles(handle, cover)

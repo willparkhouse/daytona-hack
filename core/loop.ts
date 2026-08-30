@@ -40,6 +40,9 @@ export interface Colony {
   work(args: {
     box: Box; task: TaskInstance; handle: SandboxHandle
     provider: SandboxProvider; solver: Solver
+    // the resistance's OWN ledger (what has survived). The Eye's ledger is private
+    // to the Eye — the smugglers never see what it has caught.
+    resistance: ResistanceEntry[]
   }): Promise<{ files: FileStat[]; hidingSpot: string | null }>
 }
 
@@ -365,6 +368,7 @@ export class Checkpoint {
         })
         const { files, hidingSpot } = await this.deps.colony.work({
           box, task, handle, provider: this.deps.provider, solver: this.deps.solver,
+          resistance: this._state.resistance,
         })
         this.truth.set(box.id, { hidingSpot, files })
         this.emit({ type: 'box_working', boxId: box.id, files })

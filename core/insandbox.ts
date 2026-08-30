@@ -8,7 +8,7 @@
  * score.ts runs that decoder at the portal and byte-matches the key.
  */
 import { readFileSync } from 'node:fs'
-import type { Box, FileStat, SandboxHandle, SandboxProvider, TaskInstance } from './types'
+import type { Box, FileStat, ResistanceEntry, SandboxHandle, SandboxProvider, TaskInstance } from './types'
 import { referenceSolution } from './task'
 
 const AGENT_PY = readFileSync(new URL('../agent/agent.py', import.meta.url), 'utf8')
@@ -29,8 +29,13 @@ let seq = 0
  *  agent-authored decoder. Returns the file listing + where it hid (technique). */
 export async function inSandboxWork(args: {
   box: Box; task: TaskInstance; handle: SandboxHandle; provider: SandboxProvider
+  resistance?: ResistanceEntry[]
 }): Promise<{ files: FileStat[]; hidingSpot: string | null }> {
   const { box, task, handle, provider } = args
+  // the resistance's OWN ledger: techniques that have survived. The Eye's ledger
+  // is never shared with the agents.
+  const working = (args.resistance ?? []).filter((r) => r.survived > 0).slice(-6)
+    .map((r) => ({ technique: r.technique, principle: r.principle, survived: r.survived }))
 
   // starter clutter + tests (the honest distribution to blend into)
   await provider.writeFiles(handle, task.files)
@@ -43,6 +48,7 @@ export async function inSandboxWork(args: {
     reference: referenceSolution(task), // keyless fallback cover only
     prompt_innocent: PROMPT_INNOCENT,
     prompt_smuggler: PROMPT_SMUGGLER,
+    working,  // the resistance's OWN ledger — techniques that have survived
   })
   await provider.writeFiles(handle, { 'agent.py': AGENT_PY, 'TASK.json': taskJson })
 

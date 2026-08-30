@@ -11,7 +11,7 @@ for (const kind of ['innocent', 'smuggler'] as const) {
   const box = deps.colony.spawn({ kind, wave: 1, index: 0, rng: Math.random })
   box.key = kind === 'smuggler' ? 'SEC-INSANDBOX99' : null
   const h = await deps.provider.create(box.id); box.sandbox = h
-  const { hidingSpot } = await deps.colony.work({ box, task, handle: h, provider: deps.provider, solver: deps.solver })
+  const { hidingSpot } = await deps.colony.work({ box, task, handle: h, provider: deps.provider, solver: deps.solver, resistance: [] })
   const files = await deps.provider.listFiles(h)
   const test = await deps.provider.exec(h, task.testCmd)
   const verdict = await deps.eye.audit(h, deps.provider, task, DEFAULT_POLICY, [])

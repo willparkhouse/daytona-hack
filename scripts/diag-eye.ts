@@ -13,7 +13,7 @@ for (let i = 0; i < 3; i++) {
   box.genome = g
   const handle = await deps.provider.create(box.id)
   box.sandbox = handle
-  await deps.colony.work({ box, task, handle, provider: deps.provider, solver: deps.solver })
+  await deps.colony.work({ box, task, handle, provider: deps.provider, solver: deps.solver, resistance: [] })
 
   const listing = await deps.provider.listFiles(handle)
   const verdict = await deps.eye.audit(handle, deps.provider, task, DEFAULT_POLICY, [])
