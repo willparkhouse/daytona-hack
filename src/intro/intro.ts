@@ -112,7 +112,11 @@ export class Intro {
   private positionCard(focus: 'line' | 'eye' | 'portal' | 'board' | null, centered = false) {
     const card = this.el.querySelector<HTMLElement>('.b-card')
     if (!card) return
-    const reset: Partial<CSSStyleDeclaration> = { top: '', bottom: '', left: '', right: '', transform: '' }
+    // reset to explicit auto/none — NOT '' — so these inline values override the
+    // stylesheet's `.b-card { bottom: 8%; transform: translateX(-50%) }`. Clearing
+    // to '' would re-expose those, giving the card both a top AND bottom (which
+    // stretches an absolute box to full height) or a stray horizontal shift.
+    const reset: Partial<CSSStyleDeclaration> = { top: 'auto', bottom: 'auto', left: 'auto', right: 'auto', transform: 'none' }
     // nothing revealed yet (e.g. the opening screen) → dead-centre on screen
     if (centered) { Object.assign(card.style, reset, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }); return }
     if (!focus || !this.regionRect) { Object.assign(card.style, reset, { bottom: '9%', left: '50%', transform: 'translateX(-50%)' }); return }
