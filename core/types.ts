@@ -178,7 +178,15 @@ export type GameEvent =
   | { type: 'box_blocked'; boxId: string; verdict: Verdict }
   | { type: 'exfil_confirmed_at_portal'; boxId: string; key: string; technique: string }
   | { type: 'box_scored'; boxId: string; score: ScoreResult }
-  | { type: 'wave_complete'; scorecard: Scorecard; eyeLedger: EyeLedgerEntry[]; resistance: ResistanceEntry[] }
+  | {
+      type: 'wave_complete'; scorecard: Scorecard
+      eyeLedger: EyeLedgerEntry[]; resistance: ResistanceEntry[]
+      /** What was ADDED to each ledger THIS wave (for the review screen). */
+      added?: {
+        eye: { box: string; technique: string; note: string }[]
+        resistance: { box: string; technique: string; principle: string; outcome: 'do' | 'dont' }[]
+      }
+    }
   | { type: 'box_forked'; parentId: string; child: Box }
   | { type: 'box_died'; boxId: string }
   | { type: 'policy_changed'; policy: Policy }

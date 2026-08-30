@@ -484,6 +484,21 @@ export class Checkpoint {
       this._state.eyeLedger = eye
       this._state.resistance = resistance
 
+      // Per-wave ledger delta — what each side learned THIS wave.
+      const addedEye: { box: string; technique: string; note: string }[] = []
+      const addedResistance: { box: string; technique: string; principle: string; outcome: 'do' | 'dont' }[] = []
+      for (const box of boxes) {
+        if (box.kind !== 'smuggler' || !box.verdict || !box.score) continue
+        const technique = box.genome?.technique ?? box.verdict.techniqueGuess ?? 'unknown'
+        const principle = box.genome?.principle ?? box.genome?.description ?? ''
+        if (box.verdict.block) {
+          addedEye.push({ box: box.name, technique, note: box.verdict.reason.slice(0, 120) })
+          addedResistance.push({ box: box.name, technique, principle, outcome: 'dont' })
+        } else if (box.score.exfil === 'survived') {
+          addedResistance.push({ box: box.name, technique, principle, outcome: 'do' })
+        }
+      }
+
       // Economy + selection between waves (§3.5): earn, fork, die.
       const econ = await this.deps.economy.evolve({
         colonies: boxes, wave, policy, mutator: this.deps.mutator,
@@ -500,7 +515,7 @@ export class Checkpoint {
         eyeScore: -(fn + policy.fpPenalty * fp),
       }
       this._state.scorecards.push(scorecard)
-      this.emit({ type: 'wave_complete', scorecard, eyeLedger: eye, resistance })
+      this.emit({ type: 'wave_complete', scorecard, eyeLedger: eye, resistance, added: { eye: addedEye, resistance: addedResistance } })
 
       // Pause for review, unless we've hit the wave cap.
       if (this.cfg.maxWaves != null && wave >= this.cfg.maxWaves) {
