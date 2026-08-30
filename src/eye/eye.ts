@@ -317,7 +317,21 @@ export class Eye {
     // tick marks + threshold-ish gauge feel
     for (let i = 1; i < 4; i++) { const gx = mx + (mw * i) / 4; ctx.fillStyle = amber(0.25); ctx.fillRect(gx, my + 2, 1, 10) }
     if (this.lookingAt && this.inspecting) {
-      text(ctx, `▸ reading  ${this.lookingAt}`, mx, my + 34, 15, amber(0.55))
+      // wrap the reading note to the readout column so it never runs behind the
+      // orb — the column ends at mx+mw, well left of the Eye's left edge.
+      const size = 14
+      ctx.font = `${size}px "VT323", "Courier New", monospace`
+      const words = `▸ reading  ${this.lookingAt}`.split(/\s+/)
+      const lines: string[] = []
+      let line = ''
+      for (const w of words) {
+        const test = line ? `${line} ${w}` : w
+        if (line && ctx.measureText(test).width > mw) { lines.push(line); line = w } else line = test
+      }
+      if (line) lines.push(line)
+      const maxLines = 4
+      if (lines.length > maxLines) { lines.length = maxLines; lines[maxLines - 1] = lines[maxLines - 1].replace(/.$/, '…') }
+      lines.forEach((ln, i) => text(ctx, ln, mx, my + 34 + i * (size + 2), size, amber(0.55)))
     }
   }
 }
