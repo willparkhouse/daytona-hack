@@ -283,7 +283,7 @@ crtCanvas.addEventListener('click', (ev) => {
   if (phase === 'intro' || phase === 'review') return
   const { x, y } = toVirtual(ev.clientX, ev.clientY)
   const id = checkpoint.pick(x, y)
-  if (id) { sendCmd({ type: 'pause' }); inspect.open(id); sendCmd({ type: 'inspect', boxId: id }); sfx.click() }
+  if (id) { sendCmd({ type: 'pause' }); inspect.open(id, checkpoint.info(id)); sendCmd({ type: 'inspect', boxId: id }); sfx.click() }
 })
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && inspect.isOpen()) inspect.close()
@@ -315,7 +315,7 @@ function runSelftest(kind: string | null) {
   if (kind === 'intro') {
     setTimeout(() => { review.showIntro(); setTimeout(() => { set('.intro #fp', '1.25'); click('.intro #begin') }, 200) }, 200)
   } else if (kind === 'inspectpanel') { // use with ?scene=inspect — opens the inspect panel on the leaked box
-    setTimeout(() => { inspect.open('b1-1'); sendCmd({ type: 'inspect', boxId: 'b1-1' }) }, 600)
+    setTimeout(() => { inspect.open('b1-1', checkpoint.info('b1-1')); sendCmd({ type: 'inspect', boxId: 'b1-1' }) }, 600)
   } else { // knobs (use with ?scene=review)
     setTimeout(() => {
       console.log('[selftest] driving four knobs')

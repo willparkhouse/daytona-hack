@@ -164,6 +164,17 @@ button.big:hover { background: var(--amber); color: #1a0f02; text-shadow: none; 
 .tline b { color: var(--amber); }
 .tline.hot b { color: var(--alert); text-shadow: 0 0 8px rgba(255,59,31,0.4); }
 
+/* sandbox provenance strip — proof the crate is a real (Daytona) sandbox */
+.prov { display: flex; align-items: center; gap: 12px; margin: 8px 0 6px; font-size: 14px; }
+.prov-tag { padding: 2px 9px; border: 1px solid var(--amber-dim); color: var(--amber-hot);
+  letter-spacing: 2px; white-space: nowrap; }
+.prov-tag.daytona { border-color: var(--amber); box-shadow: 0 0 10px rgba(255,166,32,0.18) inset; }
+.prov-id { color: var(--amber); letter-spacing: 1px; font-size: 15px; }
+.sb-link { color: var(--amber-hot); text-decoration: none; border: 1px solid var(--amber-dim); padding: 1px 9px; letter-spacing: 1px; }
+.sb-link:hover { border-color: var(--amber-hot); background: rgba(255,166,32,0.08); }
+.prov-root { color: var(--amber-dim); font-size: 13px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col.live .listing { max-height: 220px; overflow-y: auto; }
+
 /* the Eye's investigation trace (verdict.trace) */
 .lede.sub { font-size: 16px; }
 .invest { margin-top: 18px; }

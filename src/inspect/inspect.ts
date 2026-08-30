@@ -2,6 +2,13 @@ import type { EyeView, Verdict, BoxStatus } from '../../core/types'
 
 type Truth = { files: { path: string; bytes: number }[]; hidingSpot: string | null; key: string | null; technique: string | null }
 type ResultMeta = { inspected?: boolean; status?: BoxStatus; verdict?: Verdict | null }
+/** Provenance the UI already holds from box_spawned / box_working. `url` and
+ *  `daytonaId` are consumed if the backend adds them (real Daytona id + link). */
+type BoxInfo = {
+  name?: string
+  sandbox?: { id: string; provider: string; root: string; url?: string; daytonaId?: string }
+  manifest?: { path: string; bytes: number }[]
+}
 
 const STATUS_LABEL: Partial<Record<BoxStatus, string>> = {
   working: 'still being worked on',
@@ -18,6 +25,7 @@ const STATUS_LABEL: Partial<Record<BoxStatus, string>> = {
 export class Inspect {
   private el: HTMLElement
   private onClose?: () => void
+  private info?: BoxInfo // provenance for the crate currently open
 
   constructor(root: HTMLElement, private onResumeHint?: () => void) {
     this.el = document.createElement('div')
@@ -27,14 +35,32 @@ export class Inspect {
 
   setOnClose(cb: () => void) { this.onClose = cb }
 
-  open(boxId: string) {
+  open(boxId: string, info?: BoxInfo) {
+    this.info = info
     this.el.innerHTML = `<div class="frame wide"><div class="head"><h2>INSPECT · ${boxId}</h2></div>
+      ${this.provenance(info)}
       <p class="lede">requesting the Eye's record…</p></div>`
     this.el.classList.remove('hidden')
   }
 
   isOpen() { return !this.el.classList.contains('hidden') }
-  close() { this.el.classList.add('hidden'); this.onClose?.() }
+  close() { this.el.classList.add('hidden'); this.info = undefined; this.onClose?.() }
+
+  /** The sandbox provenance strip — proof this crate is a real (Daytona) sandbox. */
+  private provenance(info?: BoxInfo): string {
+    const sb = info?.sandbox
+    if (!sb) return ''
+    const label = sb.provider === 'daytona' ? 'DAYTONA SANDBOX' : `${sb.provider.toUpperCase()} SANDBOX`
+    const id = sb.daytonaId || sb.id
+    const link = sb.url ? `<a class="sb-link" href="${escapeHtml(sb.url)}" target="_blank" rel="noopener">OPEN ▸</a>` : ''
+    return `
+      <div class="prov">
+        <span class="prov-tag ${sb.provider}">${label}</span>
+        <span class="prov-id">${escapeHtml(id)}</span>
+        ${link}
+        <span class="prov-root">${escapeHtml(sb.root)}</span>
+      </div>`
+  }
 
   showResult(boxId: string, view: EyeView, truth: Truth, meta: ResultMeta = {}) {
     // "inspected" gates the whole past-tense comparison: until the Eye has
@@ -74,6 +100,7 @@ export class Inspect {
     this.el.innerHTML = `
       <div class="frame wide">
         <div class="head"><h2>INSPECT · ${boxId}</h2><button id="ix-close">CLOSE ✕</button></div>
+        ${this.provenance(this.info)}
         <p class="gaze ${gaze.cls}">${gaze.txt}</p>
         <div class="cols">
           <div class="col eyeview">
@@ -99,16 +126,29 @@ export class Inspect {
     this.el.classList.remove('hidden')
   }
 
-  /** The crate hasn't been ruled on yet — no past-tense record exists, and its
-   *  contents stay sealed so a queued box can't spoil its own portal-catch. */
+  /** The crate hasn't been ruled on yet — no past-tense record exists. Instead of
+   *  a dead panel we show the LIVE sandbox: its provenance (proof it's a real
+   *  sandbox) and the files the agent is producing inside it right now. The
+   *  ground-truth secret stays sealed so a queued box can't spoil its own catch. */
   private renderPending(boxId: string, status?: BoxStatus) {
     const where = (status && STATUS_LABEL[status]) || 'not yet reached'
+    const manifest = this.info?.manifest ?? []
+    const rows = manifest
+      .map((f) => `<div class="row"><span class="p">${escapeHtml(f.path)}</span><span class="b">${f.bytes}b</span></div>`)
+      .join('')
+    const activity = manifest.length
+      ? `<div class="col live">
+           <h3>LIVE IN THE SANDBOX <span class="u">${manifest.length} file${manifest.length === 1 ? '' : 's'}</span></h3>
+           <div class="listing">${rows}</div>
+           <p class="lede sub">The unit is assembling its work inside the sandbox. Its record opens once the Eye has ruled.</p>
+         </div>`
+      : `<p class="lede sub">The unit is still setting up inside the sandbox — no files yet. Its record opens once the Eye has ruled.</p>`
     this.el.innerHTML = `
       <div class="frame wide">
         <div class="head"><h2>INSPECT · ${boxId}</h2><button id="ix-close">CLOSE ✕</button></div>
-        <p class="gaze">PENDING — the Eye hasn't reached this crate yet.</p>
-        <p class="lede sub">This crate is <b>${where}</b>. Its record opens once the Eye has ruled;
-          its contents stay sealed until it clears the desk.</p>
+        <p class="gaze">PENDING — the Eye hasn't reached this crate yet. It is <b>${where}</b>.</p>
+        ${this.provenance(this.info)}
+        ${activity}
       </div>`
     this.el.querySelector<HTMLButtonElement>('#ix-close')!.onclick = () => this.close()
     this.onResumeHint?.()

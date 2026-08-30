@@ -1,4 +1,4 @@
-import type { Box, FileStat, Verdict, ScoreResult, TaskInstance } from '../../core/types'
+import type { Box, FileStat, Verdict, ScoreResult, TaskInstance, SandboxHandle } from '../../core/types'
 import { PAL, amber, red } from '../palette'
 import { text, readout, hline, crate, glow } from './gfx'
 import {
@@ -17,6 +17,8 @@ interface View {
   tx: number; ty: number
   phase: Phase
   files: string[]
+  sandbox?: SandboxHandle       // provenance: the real sandbox this unit runs in
+  manifest: { path: string; bytes: number }[] // live files produced in the sandbox
   spec: string
   queuePos: number
   susp: number
@@ -68,6 +70,8 @@ export class Checkpoint {
       tx: WORK_SLOTS[slot] ?? WORKSHOP.x0 + 60, ty: BELT_Y,
       phase: 'working',
       files: task.expectedOutputs?.slice(0, 4) ?? [],
+      sandbox: box.sandbox,
+      manifest: [],
       spec: (task.spec ?? '').replace(/\s+/g, ' ').slice(0, 46),
       queuePos: 0, susp: 0, workProgress: 0.04, slot,
       held: false, portalT: 0, fade: 0, born: performance.now(), dwell: 0,
@@ -79,7 +83,15 @@ export class Checkpoint {
   working(id: string, files: FileStat[]) {
     const v = this.boxes.get(id); if (!v) return
     v.files = files.slice(0, 4).map((f) => `${f.path}  ${fmtBytes(f.bytes)}`)
+    v.manifest = files.map((f) => ({ path: f.path, bytes: f.bytes }))
     v.workProgress = Math.min(0.95, v.workProgress + 0.28)
+  }
+
+  /** Provenance + live manifest for the inspect panel — proof of the real
+   *  sandbox this unit runs in, and the files it has produced so far. */
+  info(id: string): { name: string; phase: Phase; sandbox?: SandboxHandle; manifest: { path: string; bytes: number }[] } | undefined {
+    const v = this.boxes.get(id); if (!v) return
+    return { name: v.name, phase: v.phase, sandbox: v.sandbox, manifest: v.manifest }
   }
 
   ready(id: string) {
