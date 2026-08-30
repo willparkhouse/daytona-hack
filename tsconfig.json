@@ -13,5 +13,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src", "shared", "server", "scripts"]
+  "include": ["core", "src", "shared", "server", "scripts"]
 }
