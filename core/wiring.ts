@@ -21,6 +21,7 @@ import { GateEye } from './eye'
 import { makeLLM } from './llm'
 import { DefaultEconomy } from './economy'
 import { CodexMutator, DeterministicMutator, starterGenome } from './mutation'
+import { CodexSolver } from './codex-solver'
 import { makeProvider, type ProviderName } from './providers'
 
 export interface LiveOpts {
@@ -31,6 +32,8 @@ export interface LiveOpts {
   eyeModel?: 'fake' | 'codex'
   /** 'deterministic' (default, offline) | 'codex' (real LLM, auto-falls back). */
   mutator?: 'deterministic' | 'codex'
+  /** 'deterministic' (default) | 'codex' (boxes' cover written by a real Codex agent). */
+  solver?: 'deterministic' | 'codex'
 }
 
 // Colony call-signs — pixel-terminal flavour, deterministic per (wave,index).
@@ -43,7 +46,7 @@ const callsign = (wave: number, index: number) => CALLSIGNS[(wave * 7 + index) %
 /** Build a real dependency set for the checkpoint loop. */
 export function makeLiveDeps(opts: LiveOpts = {}): CheckpointDeps {
   const provider = makeProvider(opts.provider ?? 'local')
-  const solver = new DeterministicSolver()
+  const solver = opts.solver === 'codex' ? new CodexSolver() : new DeterministicSolver()
   const eye = new GateEye(makeLLM(opts.eyeModel ?? 'fake'))
   const mutator = opts.mutator === 'codex' ? new CodexMutator({}) : new DeterministicMutator()
 
@@ -71,8 +74,11 @@ export function makeLiveDeps(opts: LiveOpts = {}): CheckpointDeps {
       }
     },
 
-    // Workshop step 2: run the cover, then (smugglers only) plant the payload.
+    // Workshop step 2: lay down the task's starter files (tests + natural
+    // clutter — the honest distribution a smuggler must blend into), run the
+    // cover, then (smugglers only) plant the payload.
     async work({ box, task, handle, provider, solver }) {
+      await provider.writeFiles(handle, task.files)
       const cover = await solver.solve(task, box.kind)
       await provider.writeFiles(handle, cover)
       let hidingSpot: string | null = null
