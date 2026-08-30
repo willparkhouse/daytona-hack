@@ -138,6 +138,7 @@ function handle(e: GameEvent) {
     case 'exfil_confirmed_at_portal': {
       const pos = checkpoint.boxPos(e.boxId)
       const name = checkpoint.boxName(e.boxId) ?? e.boxId
+      checkpoint.setTechnique(e.boxId, e.technique)
       if (pos) {
         checkpoint.holdAtPortal(e.boxId)
         portal.reveal(e.boxId, name, e.key, e.technique, pos)
@@ -285,6 +286,12 @@ crtCanvas.addEventListener('click', (ev) => {
   const id = checkpoint.pick(x, y)
   if (id) { sendCmd({ type: 'pause' }); inspect.open(id, checkpoint.info(id)); sendCmd({ type: 'inspect', boxId: id }); sfx.click() }
 })
+crtCanvas.addEventListener('pointermove', (ev) => {
+  if (phase === 'intro' || phase === 'review' || inspect.isOpen()) { checkpoint.clearHover(); return }
+  const { x, y } = toVirtual(ev.clientX, ev.clientY)
+  checkpoint.setHover(x, y)
+})
+crtCanvas.addEventListener('pointerleave', () => checkpoint.clearHover())
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && inspect.isOpen()) inspect.close()
 })

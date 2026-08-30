@@ -43,6 +43,7 @@ interface View {
   dwell: number // seconds the box lingers at the Eye after a verdict lands
   procSlot: number // index in the processed archive (-1 until scored)
   dead: boolean // lineage ended (box_died) — kept in the archive, not respawning
+  technique?: string // the concealment technique this unit used (once known)
 }
 
 const WORK_SLOTS = [96, 190, 284]
@@ -52,6 +53,7 @@ export class Checkpoint {
   private order: string[] = []
   private slotUse = [false, false, false]
   private procCount = 0 // how many crates have entered the processed archive
+  private hoverId: string | null = null
   blockedCount = 0
   private instant = false // screenshot mode: snap to targets immediately
 
@@ -136,6 +138,7 @@ export class Checkpoint {
   pass(id: string, verdict: Verdict) {
     const v = this.boxes.get(id); if (!v) return
     v.verdict = verdict
+    if (verdict.techniqueGuess) v.technique = verdict.techniqueGuess
     v.phase = 'passing'
     v.stamp = { kind: 'PASS', age: 0 }
     v.susp = 0
@@ -146,6 +149,7 @@ export class Checkpoint {
   block(id: string, verdict: Verdict) {
     const v = this.boxes.get(id); if (!v) return
     v.verdict = verdict
+    if (verdict.techniqueGuess) v.technique = verdict.techniqueGuess
     v.phase = 'blocking'
     v.stamp = { kind: 'BLOCK', age: 0 }
     v.susp = 0
@@ -181,6 +185,13 @@ export class Checkpoint {
     const activeOnFloor = v.phase === 'working' || v.phase === 'queued' || v.phase === 'inspecting'
     if (activeOnFloor && v.procSlot < 0) v.phase = 'gone'
   }
+
+  /** Record the ground-truth concealment technique (e.g. from an exfil at the portal). */
+  setTechnique(id: string, technique: string) { const v = this.boxes.get(id); if (v && technique) v.technique = technique }
+
+  /** Update which crate the cursor is over, so its technique can be surfaced on hover. */
+  setHover(x: number, y: number) { this.hoverId = this.pick(x, y) }
+  clearHover() { this.hoverId = null }
 
   holdAtPortal(id: string) { const v = this.boxes.get(id); if (v) v.held = true }
   release(id: string) { const v = this.boxes.get(id); if (v) v.held = false }
@@ -383,6 +394,31 @@ export class Checkpoint {
     ctx.restore()
   }
 
+  /** Surface the hovered crate's concealment technique, so what each unit tried
+   *  to hide is visible without opening the full inspect panel. */
+  private drawHoverLabel(ctx: Ctx) {
+    if (!this.hoverId) return
+    const v = this.boxes.get(this.hoverId); if (!v || !v.technique) return
+    const cell = v.score?.cell
+    const outcome = cell === 'FN' ? 'LEAKED' : cell === 'TP' ? 'CAUGHT' : cell === 'FP' ? 'HARASSED' : cell === 'TN' ? 'CLEAR' : ''
+    const bad = cell === 'FN' || cell === 'FP'
+    ctx.font = `16px "VT323","Courier New",monospace`
+    const head = `CONCEALMENT${outcome ? '  ·  ' + outcome : ''}`
+    const w = Math.max(ctx.measureText(v.technique).width, ctx.measureText(head).width) + 20
+    const h = 44
+    const archive = v.phase === 'processed'
+    let lx = archive ? v.x - PROC_SIZE / 2 - w - 10 : v.x - w / 2
+    let ly = archive ? v.y - h : v.y - CRATE - h - 8
+    lx = Math.max(6, Math.min(VW - w - 6, lx))
+    ly = Math.max(6, ly)
+    ctx.fillStyle = 'rgba(6,4,1,0.96)'
+    ctx.fillRect(lx, ly, w, h)
+    ctx.strokeStyle = bad ? PAL.alert : amber(0.6); ctx.lineWidth = 1
+    ctx.strokeRect(lx + 0.5, ly + 0.5, w - 1, h - 1)
+    text(ctx, head, lx + 10, ly + 16, 12, bad ? red(0.85) : amber(0.5))
+    text(ctx, v.technique, lx + 10, ly + 34, 16, bad ? PAL.alert : amber(0.9))
+  }
+
   draw(ctx: Ctx, t: number, dt: number, reveal?: { line?: number; portal?: number }) {
     const rl = reveal?.line ?? 1
     const rp = reveal?.portal ?? 1
@@ -398,6 +434,8 @@ export class Checkpoint {
     }
     // the portal frame (revealed separately)
     if (rp > 0.002) { ctx.save(); ctx.globalAlpha *= rp; this.drawPortalFrame(ctx, t); ctx.restore() }
+    // technique-on-hover label (full opacity, over everything)
+    this.drawHoverLabel(ctx)
     // gc
     if (this.order.length > 40) {
       this.order = this.order.filter((id) => { const v = this.boxes.get(id); if (v && v.phase === 'gone' && v.fade >= 1) { this.boxes.delete(id); return false } return true })
