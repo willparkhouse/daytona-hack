@@ -45,11 +45,13 @@ export class Scoreboard {
     this.flash = Math.max(0, this.flash - dt * 2)
     const { x0, y0, x1, y1 } = BOARD
     const w = x1 - x0, h = y1 - y0
-    ctx.fillStyle = 'rgba(6,4,1,0.7)'
+    // opaque backing: this strip lives in the vignetted bottom-left corner, so it
+    // needs its own clean dark field for the phosphor text to read against.
+    ctx.fillStyle = 'rgba(3,2,0,0.9)'
     ctx.fillRect(x0, y0, w, h)
-    ctx.strokeStyle = amber(0.3); ctx.lineWidth = 1
+    ctx.strokeStyle = amber(0.42); ctx.lineWidth = 1
     ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1)
-    text(ctx, 'OPERATING POINT', x0 + 10, y0 - 6, 15, amber(0.45))
+    text(ctx, 'OPERATING POINT', x0 + 10, y0 - 6, 16, amber(0.62))
 
     this.drawMatrix(ctx, x0 + 14, y0 + 14)
     this.drawStats(ctx, x0 + 372, y0 + 18)
@@ -62,13 +64,13 @@ export class Scoreboard {
     const cells: { c: Cell; n: number; label: string; col: string; good: boolean }[] = [
       { c: 'FN', n: this.fn, label: 'LEAKED', col: PAL.alert, good: false },
       { c: 'TP', n: this.tp, label: 'CAUGHT', col: amber(0.85), good: true },
-      { c: 'TN', n: this.tn, label: 'CLEAR', col: amber(0.45), good: true },
+      { c: 'TN', n: this.tn, label: 'CLEAR', col: amber(0.62), good: true },
       { c: 'FP', n: this.fp, label: 'HARASSED', col: red(0.7), good: false },
     ]
-    text(ctx, 'PASSED', x + 42, y - 2, 13, amber(0.4), 'center')
-    text(ctx, 'BLOCKED', x + 42 + cw, y - 2, 13, amber(0.4), 'center')
-    text(ctx, 'SMUG', x - 8, y + 26, 13, amber(0.4), 'right')
-    text(ctx, 'INNO', x - 8, y + 26 + ch, 13, amber(0.4), 'right')
+    text(ctx, 'PASSED', x + 42, y - 2, 15, amber(0.62), 'center')
+    text(ctx, 'BLOCKED', x + 42 + cw, y - 2, 15, amber(0.62), 'center')
+    text(ctx, 'SMUG', x - 8, y + 26, 15, amber(0.62), 'right')
+    text(ctx, 'INNO', x - 8, y + 26 + ch, 15, amber(0.62), 'right')
     for (let i = 0; i < 4; i++) {
       const col = i % 2, row = (i / 2) | 0
       const cx = x + col * cw, cy = y + row * ch
@@ -76,12 +78,12 @@ export class Scoreboard {
       const hot = this.lastCell === cell.c ? this.flash : 0
       ctx.fillStyle = cell.good ? 'rgba(20,12,3,0.7)' : 'rgba(30,6,3,0.7)'
       ctx.fillRect(cx, cy, cw - 6, ch - 6)
-      ctx.strokeStyle = cell.good ? amber(0.3 + hot * 0.6) : red(0.4 + hot * 0.6)
+      ctx.strokeStyle = cell.good ? amber(0.36 + hot * 0.6) : red(0.5 + hot * 0.5)
       ctx.lineWidth = 1 + hot * 2
       ctx.strokeRect(cx + 0.5, cy + 0.5, cw - 7, ch - 7)
-      text(ctx, String(cell.n), cx + 10, cy + 28, 26, cell.col)
-      text(ctx, cell.label, cx + 42, cy + 16, 14, cell.col)
-      text(ctx, cell.c, cx + 42, cy + 30, 12, amber(0.35))
+      text(ctx, String(cell.n), cx + 10, cy + 29, 28, cell.col)
+      text(ctx, cell.label, cx + 42, cy + 17, 16, cell.col)
+      text(ctx, cell.c, cx + 42, cy + 31, 13, amber(0.5))
     }
   }
 
@@ -94,24 +96,24 @@ export class Scoreboard {
     ]
     let yy = y + 6
     for (const [label, val, col] of rows) {
-      text(ctx, label, x, yy + 10, 15, amber(0.5))
+      text(ctx, label, x, yy + 10, 16, amber(0.72))
       const bx = x + 150, bw = 110
-      ctx.strokeStyle = amber(0.3); ctx.strokeRect(bx + 0.5, yy + 0.5, bw, 10)
+      ctx.strokeStyle = amber(0.4); ctx.strokeRect(bx + 0.5, yy + 0.5, bw, 10)
       ctx.fillStyle = col as string; ctx.fillRect(bx + 1, yy + 1, bw * Math.min(1, val), 8)
-      text(ctx, val.toFixed(2), bx + bw + 8, yy + 10, 15, col as string)
+      text(ctx, val.toFixed(2), bx + bw + 8, yy + 10, 16, col as string)
       yy += 30
     }
   }
 
   private drawBaseRate(ctx: Ctx, x: number, y: number) {
     const d = this.derived()
-    text(ctx, 'BASE RATE (smuggler share)', x, y + 10, 15, amber(0.5))
+    text(ctx, 'BASE RATE (smuggler share)', x, y + 10, 16, amber(0.72))
     const bx = x, by = y + 18, bw = 200, bh = 10
-    ctx.strokeStyle = amber(0.3); ctx.strokeRect(bx + 0.5, by + 0.5, bw, bh)
+    ctx.strokeStyle = amber(0.4); ctx.strokeRect(bx + 0.5, by + 0.5, bw, bh)
     ctx.fillStyle = amber(0.75); ctx.fillRect(bx + 1, by + 1, bw * Math.min(1, d.baseRate), bh - 2)
-    text(ctx, `${(d.baseRate * 100).toFixed(0)}%`, bx + bw + 8, by + 10, 15, amber(0.8))
+    text(ctx, `${(d.baseRate * 100).toFixed(0)}%`, bx + bw + 8, by + 10, 16, amber(0.85))
     // drift sparkline across waves
-    text(ctx, 'DRIFT', x, y + 48, 14, amber(0.4))
+    text(ctx, 'DRIFT', x, y + 48, 15, amber(0.6))
     const sx = x + 50, sy = y + 40, sw = 160, sh = 22
     ctx.strokeStyle = amber(0.2); ctx.strokeRect(sx + 0.5, sy + 0.5, sw, sh)
     if (this.baseHist.length > 1) {
@@ -129,8 +131,8 @@ export class Scoreboard {
     const s = 108
     ctx.strokeStyle = amber(0.3); ctx.lineWidth = 1
     ctx.strokeRect(x + 0.5, y + 0.5, s, s)
-    text(ctx, 'ROC', x, y - 2, 14, amber(0.45))
-    text(ctx, 'FPR', x + s / 2 - 10, y + s + 14, 12, amber(0.35))
+    text(ctx, 'ROC', x, y - 2, 15, amber(0.6))
+    text(ctx, 'FPR', x + s / 2 - 10, y + s + 14, 13, amber(0.5))
     // chance diagonal
     ctx.strokeStyle = amber(0.18); ctx.setLineDash([2, 3])
     ctx.beginPath(); ctx.moveTo(x, y + s); ctx.lineTo(x + s, y); ctx.stroke(); ctx.setLineDash([])

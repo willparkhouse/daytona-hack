@@ -36,7 +36,7 @@ void main(){
 }`
 
 export interface CrtParams { curve: number; scan: number; bloom: number; aberr: number; vig: number; flicker: number }
-export const PHASE1: CrtParams = { curve: 0.06, scan: 0.20, bloom: 0.9, aberr: 0.0011, vig: 0.42, flicker: 1 }
+export const PHASE1: CrtParams = { curve: 0.06, scan: 0.20, bloom: 0.9, aberr: 0.0011, vig: 0.34, flicker: 1 }
 export const PHASE2: CrtParams = { curve: 0.0, scan: 0.0, bloom: 0.15, aberr: 0.0, vig: 0.2, flicker: 0 }
 
 export class Crt {
