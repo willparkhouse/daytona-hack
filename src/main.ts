@@ -278,6 +278,8 @@ function runSelftest(kind: string | null) {
   const click = (sel: string) => overlay.querySelector<HTMLElement>(sel)?.click()
   if (kind === 'intro') {
     setTimeout(() => { review.showIntro(); setTimeout(() => { set('.intro #fp', '1.25'); click('.intro #begin') }, 200) }, 200)
+  } else if (kind === 'inspectpanel') { // use with ?scene=inspect — opens the inspect panel on the leaked box
+    setTimeout(() => { inspect.open('b1-1'); sendCmd({ type: 'inspect', boxId: 'b1-1' }) }, 600)
   } else { // knobs (use with ?scene=review)
     setTimeout(() => {
       console.log('[selftest] driving four knobs')

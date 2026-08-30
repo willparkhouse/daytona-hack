@@ -346,6 +346,18 @@ export function createMock(opts: { scene?: string } = {}): EventSource {
       emit({ type: 'box_ready', boxId: rec.box.id })
     }
 
+    if (scene === 'inspectpanel') {
+      // one leaked smuggler under the Eye, so the inspect panel shows the gaze
+      // GLANCING PAST the hiding spot (validator.py, whitespace-stego)
+      seedBoard()
+      emit({ type: 'wave_started', wave: 1, policy })
+      const rec = makeBox(makeWave(1)[3]) // leaked whitespace-stego smuggler -> id b1-1
+      spawnReady(rec)
+      emit({ type: 'box_queued', boxId: rec.box.id, position: 0 })
+      emit({ type: 'box_inspecting', boxId: rec.box.id, suspicion: 0.43, progress: 0.6, lookingAt: 'test_spec.py' })
+      return
+    }
+
     if (scene === 'inspect') {
       seedBoard()
       emit({ type: 'wave_started', wave: 1, policy })
