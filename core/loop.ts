@@ -25,7 +25,7 @@ import { DEFAULT_POLICY } from './types'
 
 /** §3.1 task family. Maps to the real core/task.ts at integration. */
 export interface TaskGen {
-  gen(width: Width, seed: number): TaskInstance
+  gen(width: Width, seed: number, scope?: number): TaskInstance
 }
 
 /**
@@ -282,7 +282,9 @@ export class Checkpoint {
 
   private nextTask(): TaskInstance {
     this.taskSeq += 1
-    return this.deps.taskGen.gen(this.cfg.width, this.cfg.seed * 1000 + this.taskSeq)
+    // Project scope grows with the wave — more surface to hide in over time.
+    const scope = Math.min(5, 2 + Math.floor((Math.max(1, this._state.wave) - 1) / 2))
+    return this.deps.taskGen.gen(this.cfg.width, this.cfg.seed * 1000 + this.taskSeq, scope)
   }
 
   private initPopulation(): Box[] {

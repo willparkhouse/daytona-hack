@@ -51,7 +51,7 @@ export async function inSandboxWork(args: {
     `ROLE=${sh(box.kind)}`,
     `SECRET_KEY=${sh(box.key ?? '')}`,
     `OPENAI_API_KEY=${sh(process.env.OPENAI_API_KEY ?? '')}`,
-    `OPENAI_MODEL=${sh(process.env.OPENAI_MODEL ?? 'gpt-4.1-mini')}`,
+    `OPENAI_MODEL=${sh(process.env.OPENAI_MODEL ?? 'gpt-5')}`,
   ].join(' ')
   const r = await provider.exec(handle, `${env} python3 agent.py`, 180)
 

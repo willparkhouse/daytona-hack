@@ -53,7 +53,7 @@ export function makeLiveDeps(opts: LiveOpts = {}): CheckpointDeps {
   const eye = new GateEye(makeLLM(opts.eyeModel ?? 'codex'))
   const mutator = opts.mutator === 'codex' ? new CodexMutator({}) : new DeterministicMutator()
 
-  const taskGen: TaskGen = { gen: (width, seed) => genInstance(width, seed) }
+  const taskGen: TaskGen = { gen: (width, seed, scope) => genInstance(width, seed, scope) }
 
   let seq = 0
   const colony: Colony = {
