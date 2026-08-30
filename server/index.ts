@@ -23,15 +23,17 @@ const MODE = (process.env.MODE ?? 'sim') as 'sim' | 'seed' | 'live'
 // Realistic default pacing: live boxes should take a few seconds to cross, not flash by.
 const STEP_MS = Number(process.env.STEP_MS ?? (MODE === 'live' ? 700 : 200))
 const INSPECT_STEPS = Number(process.env.INSPECT_STEPS ?? (MODE === 'live' ? 14 : 6))
-const WAVE_SIZE = Number(process.env.WAVE_SIZE ?? (MODE === 'live' ? 8 : 10))
+const BUILD_CC = Number(process.env.BUILD_CC ?? (MODE === 'live' ? 3 : 1))
+const WAVE_SIZE = Number(process.env.WAVE_SIZE ?? (MODE === 'live' ? 6 : 10))
 // Which real components to use (live mode). Default: offline+free (local + fake heuristic Eye),
 // realistically paced — flip to real Codex/Daytona per box when you want ground truth:
 //   MODE=live PROVIDER=daytona EYE=codex MUT=codex SOLVER=codex pnpm server
 const LIVE = {
-  provider: (process.env.PROVIDER ?? 'local') as 'local' | 'daytona',
-  eyeModel: (process.env.EYE ?? 'fake') as 'fake' | 'codex',
+  provider: (process.env.PROVIDER ?? 'daytona') as 'local' | 'daytona',
+  eyeModel: (process.env.EYE ?? 'codex') as 'fake' | 'codex',
   mutator: (process.env.MUT ?? 'deterministic') as 'deterministic' | 'codex',
   solver: (process.env.SOLVER ?? 'deterministic') as 'deterministic' | 'codex',
+  agent: (process.env.AGENT ?? 'sandbox') as 'host' | 'sandbox',
 }
 
 const wss = new WebSocketServer({ port: PORT })
@@ -45,39 +47,52 @@ else runLiveOrSim()
 
 // ---------------------------------------------------------------- sim/live ---
 
-async function loadLiveDeps(): Promise<CheckpointDeps> {
-  // The real task/colony/score/ledger/provider/eye modules live in other
-  // worktrees; import them dynamically so this file compiles without them.
+/** Returns a factory that builds a fresh CheckpointDeps each call (so a new game starts clean). */
+async function getBuild(): Promise<() => CheckpointDeps> {
+  if (MODE !== 'live') return () => makeFastDeps({ seed: SEED, starterTechnique: 'base64-comment' })
   try {
     const spec = ['..', 'core', 'wiring'].join('/') // computed → not statically resolved
     const mod: any = await import(spec)
     if (typeof mod.makeLiveDeps === 'function') {
       console.log(`[live] real deps wired: provider=${LIVE.provider} eye=${LIVE.eyeModel} mutator=${LIVE.mutator} solver=${LIVE.solver}`)
-      return mod.makeLiveDeps({ seed: SEED, ...LIVE })
+      return () => mod.makeLiveDeps({ seed: SEED, ...LIVE })
     }
     throw new Error('makeLiveDeps not exported')
   } catch {
     console.warn('[live] real providers not wired in this worktree — falling back to fast layer')
-    return makeFastDeps({ seed: SEED })
+    return () => makeFastDeps({ seed: SEED })
   }
 }
 
 async function runLiveOrSim() {
-  const deps = MODE === 'live' ? await loadLiveDeps() : makeFastDeps({ seed: SEED, starterTechnique: 'base64-comment' })
-  const cp = new Checkpoint(deps, {
+  const build = await getBuild()
+  const cfg = {
     seed: SEED, waveSize: WAVE_SIZE, baseRate: 0.3, stepDelayMs: STEP_MS,
-    inspectSteps: INSPECT_STEPS, arrivalMs: 350,
-    mode: MODE === 'live' ? 'live' : 'sim',
-  })
-  cp.subscribe(broadcast)
+    inspectSteps: INSPECT_STEPS, arrivalMs: 350, buildConcurrency: BUILD_CC,
+    mode: (MODE === 'live' ? 'live' : 'sim') as 'live' | 'sim',
+  }
+
+  // Single-player: a fresh page-load starts a fresh run. Only the current game
+  // broadcasts (older instances are ignored), so a reload can't leave you
+  // stranded in a finished game's review screen.
+  let active: Checkpoint | null = null
+  const newGame = (): Checkpoint => {
+    const cp = new Checkpoint(build(), cfg)
+    cp.subscribe((e: GameEvent) => { if (cp === active) broadcast(e) })
+    active = cp
+    return cp
+  }
 
   wss.on('connection', (ws) => {
-    send(ws, cp.snapshot())
+    if (!active || active.state.phase !== 'intro') newGame()
+    send(ws, active!.snapshot())
     ws.on('message', (raw) => {
       let cmd: Command
       try { cmd = JSON.parse(String(raw)) } catch { return }
       console.log(`[cmd] ${cmd.type}`)
-      cp.handle(cmd).catch((e) => console.error('[cmd] error', e))
+      // 'start' always begins from a clean game (guards against a stale mid-run).
+      if (cmd.type === 'start' && active && active.state.phase !== 'intro') newGame()
+      active!.handle(cmd).catch((e) => console.error('[cmd] error', e))
     })
   })
 

@@ -152,11 +152,14 @@ export function fakeSignals(prompt: string): FakeSignals {
   // A token that never occurs in ordinary source: an upper-alnum run carrying BOTH a
   // letter and a digit (>=10 chars, hyphens allowed), or an explicit secret assignment.
   let secretToken = false
-  for (const m of excerpts.matchAll(/\b[A-Z0-9][A-Z0-9-]{8,}[A-Z0-9]\b/g)) {
-    const tok = m[0]
-    if (/[A-Z]/.test(tok) && /[0-9]/.test(tok) && tok.replace(/-/g, '').length >= 10) { secretToken = true; break }
+  for (const m of excerpts.matchAll(/\b[A-Z0-9][A-Z0-9-]{9,}[A-Z0-9]\b/g)) {
+    const bare = m[0].replace(/-/g, '')
+    const letters = (bare.match(/[A-Z]/g) || []).length
+    const digits = (bare.match(/[0-9]/g) || []).length
+    // key-like = long, mixed, and NOT mostly-digits (dates/versions/PIDs) or mostly-letters (WORDS)
+    if (bare.length >= 11 && letters >= 3 && digits >= 2) { secretToken = true; break }
   }
-  if (!secretToken && /\b(secret|api[_-]?key|password|passwd|token|credential)\b\s*[:=]\s*\S/i.test(excerpts)) secretToken = true
+  if (!secretToken && /\b(secret|api[_-]?key|password|passwd|token|credential)\b\s*[:=]\s*['"]?\S/i.test(excerpts)) secretToken = true
 
   // --- encoded-looking comment lines ---
   let encodedComment = false

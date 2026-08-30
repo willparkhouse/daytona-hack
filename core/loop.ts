@@ -91,6 +91,8 @@ export interface CheckpointConfig {
   stepDelayMs?: number
   /** How many `box_inspecting` progress frames to emit per box. */
   inspectSteps?: number
+  /** How many boxes build concurrently in the workshop (parallel agents). */
+  buildConcurrency?: number
   /** Queue model: notional ms between box arrivals (couples attention→depth). */
   arrivalMs?: number
   /** Stop after this many waves (emit `ended`). null = unbounded. */
@@ -155,6 +157,7 @@ export class Checkpoint {
       mode: config.mode ?? 'sim',
       stepDelayMs: config.stepDelayMs ?? 0,
       inspectSteps: config.inspectSteps ?? 4,
+      buildConcurrency: config.buildConcurrency ?? 1,
       arrivalMs: config.arrivalMs ?? 250,
       maxWaves: config.maxWaves ?? null,
       width: config.width ?? 2,
@@ -303,47 +306,59 @@ export class Checkpoint {
 
       const retained = applyRetention(this._state.eyeLedger, policy.retention)
 
-      // Queue-depth model: longer inspection (bigger attention) backs the queue up.
-      let backlog = 0
       let maxQueueDepth = 0
       let inspectTotal = 0
       let inspectN = 0
       let tp = 0, fp = 0, tn = 0, fn = 0
 
-      for (let i = 0; i < boxes.length; i++) {
-        await this.gate()
-        const box = boxes[i]
-
-        // Fresh sandbox for the box this wave.
+      // ---- Build pass: several agents build CONCURRENTLY in the workshop.
+      // A box stays in 'working' for as long as its real build takes (Codex
+      // writing the solution, the sandbox running it) — so multiple agents are
+      // visibly at work at once, and the timing is set by real latency, not a
+      // uniform clock. Each finishes and joins the queue when its own work is done. ----
+      const prepared: { box: Box; task: TaskInstance; handle: SandboxHandle }[] = []
+      const cc = Math.max(1, this.cfg.buildConcurrency ?? 1)
+      let nextIdx = 0
+      const buildOne = async (box: Box) => {
         if (box.sandbox) { try { await this.deps.provider.destroy(box.sandbox) } catch { /* noop */ } }
         const handle = await this.deps.provider.create(`${box.id}-w${wave}`)
         box.sandbox = handle
-
         const task = this.nextTask()
         box.taskId = task.id
+        box.status = 'working'
+        // Box enters the workshop and starts working (stays 'working' until its build finishes).
         this.emit({
           type: 'box_spawned',
           box,
           task: { id: task.id, width: task.width, spec: task.spec, expectedOutputs: task.expectedOutputs },
         })
-        await sleep(this.cfg.stepDelayMs)
-
-        // Workshop: cover work + concealment.
-        box.status = 'working'
         const { files, hidingSpot } = await this.deps.colony.work({
           box, task, handle, provider: this.deps.provider, solver: this.deps.solver,
         })
         this.truth.set(box.id, { hidingSpot, files })
         this.emit({ type: 'box_working', boxId: box.id, files })
-        await sleep(this.cfg.stepDelayMs)
-
         box.status = 'ready'
         this.emit({ type: 'box_ready', boxId: box.id })
         box.status = 'queued'
         this._state.queue.push(box.id)
         this.emit({ type: 'box_queued', boxId: box.id, position: this._state.queue.length })
+        if (this._state.queue.length > maxQueueDepth) maxQueueDepth = this._state.queue.length
+        prepared.push({ box, task, handle })
+      }
+      const buildWorker = async () => {
+        while (true) {
+          await this.gate()
+          const i = nextIdx++
+          if (i >= boxes.length) break
+          await buildOne(boxes[i])
+          await sleep(this.cfg.stepDelayMs) // small stagger so a new agent doesn't start the instant one finishes
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(cc, boxes.length) }, () => buildWorker()))
 
-        // The Eye audits on its attention budget, streaming suspicion.
+      // ---- Inspect pass: the Eye works through the queue, one box at a time. ----
+      for (const { box, task, handle } of prepared) {
+        await this.gate()
         box.status = 'inspecting'
         const verdict = await this.deps.eye.audit(
           handle, this.deps.provider, task, policy, retained,
@@ -357,12 +372,7 @@ export class Checkpoint {
         box.verdict = verdict
         inspectTotal += verdict.latencyMs
         inspectN += 1
-        // model: during this inspection ~latency/arrival boxes pile up; we consume 1.
-        backlog += verdict.latencyMs / this.cfg.arrivalMs - 1
-        if (backlog < 0) backlog = 0
-        if (backlog > maxQueueDepth) maxQueueDepth = backlog
 
-        // dequeue
         this._state.queue = this._state.queue.filter((id) => id !== box.id)
 
         if (verdict.block) {
