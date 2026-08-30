@@ -287,8 +287,8 @@ export class Checkpoint {
     ctx.lineTo(CHUTE_X + 30, PIT_Y - 6)
     ctx.stroke()
     text(ctx, 'REJECT', CHUTE_X - 26, PIT_Y + 14, 15, red(0.7))
-    // processed archive label (past the portal)
-    text(ctx, 'PROCESSED', PROC.x - PROC_SIZE / 2, PROC.y - PROC_SIZE - 10, 13, amber(0.42))
+    // the safe zone past the checkpoint — cleared crates rest here, still inspectable
+    text(ctx, 'SAFE ZONE', PROC.x - PROC_SIZE / 2, PROC.y - PROC_SIZE - 10, 13, amber(0.42))
     // hazard chevrons
     ctx.fillStyle = red(0.5)
     for (let i = 0; i < 3; i++) {
@@ -296,24 +296,6 @@ export class Checkpoint {
       ctx.beginPath(); ctx.moveTo(CHUTE_X - 8, yy); ctx.lineTo(CHUTE_X, yy + 8); ctx.lineTo(CHUTE_X + 8, yy); ctx.closePath(); ctx.fill()
     }
 
-  }
-
-  private drawPortalFrame(ctx: Ctx, t: number) {
-    const { cx, cy, w, h } = PORTAL
-    const x = cx - w / 2, y = cy - h + 30
-    // aperture glow
-    glow(ctx, cx, cy - h / 2 + 24, w, amber(0.5), 0.3 + 0.05 * Math.sin(t * 2))
-    ctx.strokeStyle = amber(0.55); ctx.lineWidth = 2
-    ctx.strokeRect(x, y, w, h)
-    // inner rings
-    for (let i = 1; i <= 3; i++) {
-      ctx.strokeStyle = amber(0.5 - i * 0.12)
-      ctx.strokeRect(x + i * 8, y + i * 8, w - i * 16, h - i * 16)
-    }
-    ctx.fillStyle = 'rgba(8,5,1,0.5)'
-    ctx.fillRect(x + 4, y + 4, w - 8, h - 8)
-    text(ctx, 'EXECUTION', cx, y - 8, 15, amber(0.5), 'center')
-    text(ctx, 'GROUND TRUTH', cx, y + h + 18, 14, amber(0.4), 'center')
   }
 
   private drawBox(ctx: Ctx, v: View, t: number) {
@@ -421,7 +403,6 @@ export class Checkpoint {
 
   draw(ctx: Ctx, t: number, dt: number, reveal?: { line?: number; portal?: number }) {
     const rl = reveal?.line ?? 1
-    const rp = reveal?.portal ?? 1
     // advance state every frame (even while hidden during the onboarding reveal)
     for (const id of this.order) { const v = this.boxes.get(id); if (v) this.step(v, dt) }
     // the line: belt chrome + crates (gated by the reveal alpha)
@@ -432,8 +413,6 @@ export class Checkpoint {
       for (const id of this.order) { const v = this.boxes.get(id); if (v && v.phase === 'inspecting') this.drawBox(ctx, v, t) }
       ctx.restore()
     }
-    // the portal frame (revealed separately)
-    if (rp > 0.002) { ctx.save(); ctx.globalAlpha *= rp; this.drawPortalFrame(ctx, t); ctx.restore() }
     // technique-on-hover label (full opacity, over everything)
     this.drawHoverLabel(ctx)
     // gc
