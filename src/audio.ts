@@ -2,7 +2,23 @@
 let ctx: AudioContext | null = null
 let master: GainNode | null = null
 
+// ambient background loop — "machine room hiss" under everything
+const MUSIC_URL = new URL('../art/Machine Room Hiss.mp3', import.meta.url).href
+let music: HTMLAudioElement | null = null
+
+/** Start (or resume) the looping background hiss. Safe to call repeatedly. */
+export function startMusic(volume = 0.32) {
+  if (!music) {
+    music = new Audio(MUSIC_URL)
+    music.loop = true
+    music.volume = volume
+  }
+  music.play().catch(() => { /* awaits a user gesture; unlockAudio retries */ })
+}
+export function setMusicVolume(v: number) { if (music) music.volume = Math.max(0, Math.min(1, v)) }
+
 export function unlockAudio() {
+  startMusic()
   if (ctx) return
   ctx = new AudioContext()
   master = ctx.createGain()
