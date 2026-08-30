@@ -179,7 +179,7 @@ export type GameEvent =
   | { type: 'box_forked'; parentId: string; child: Box }
   | { type: 'box_died'; boxId: string }
   | { type: 'policy_changed'; policy: Policy }
-  | { type: 'inspect_result'; boxId: string; view: EyeView; truth: { files: FileStat[]; hidingSpot: string | null; key: string | null; technique: string | null } }
+  | { type: 'inspect_result'; boxId: string; inspected?: boolean; status?: BoxStatus; verdict?: Verdict | null; view: EyeView; truth: { files: FileStat[]; hidingSpot: string | null; key: string | null; technique: string | null } }
   | { type: 'ended'; scorecards: Scorecard[] }
 
 export type GamePhase = 'intro' | 'streaming' | 'review' | 'ended'

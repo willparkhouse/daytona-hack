@@ -259,6 +259,9 @@ export class Checkpoint {
     this.emit({
       type: 'inspect_result',
       boxId,
+      inspected: Boolean(box.verdict),
+      status: box.status,
+      verdict: box.verdict ?? null,
       view,
       truth: {
         files: t.files,
