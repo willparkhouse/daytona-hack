@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>THE LONG WATCH — look lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Serif:ital@0;1&display=swap" rel="stylesheet" />
+<style>
+  :root { --pl:#c9c9c9; --pl-dim:#6a6a6a; --edge:#222; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:#08090a; color:var(--pl); font-family:'IBM Plex Mono',monospace; overflow:hidden; }
+  #wrap { display:grid; grid-template-columns:1fr 340px; height:100vh; }
+  #stage { position:relative; background:#000; overflow:hidden; }
+  #stage canvas { position:absolute; inset:0; width:100%; height:100%; display:block; image-rendering:pixelated; }
+  #scene2d { visibility:hidden; }
+  body.raw #scene2d { visibility:visible; } body.raw #glcanvas { display:none; }
+
+  #panel { background:#0c0d0f; border-left:1px solid var(--edge); overflow-y:auto; padding:14px 16px 40px; }
+  #panel h1 { font-family:'VT323',monospace; font-size:26px; letter-spacing:.06em; margin:0 0 2px; color:#e6e6e6; }
+  #panel .sub { color:var(--pl-dim); font-size:11px; margin:0 0 14px; line-height:1.4; }
+  .group { border-top:1px solid var(--edge); padding:12px 0 6px; }
+  .group h2 { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--pl-dim); margin:0 0 10px; font-weight:500; }
+  .row { display:grid; grid-template-columns:78px 1fr 46px; align-items:center; gap:8px; margin-bottom:9px; }
+  .row label { font-size:11px; color:#9a9a9a; }
+  .row input[type=range]{ width:100%; accent-color:#8a8a8a; height:2px; }
+  .row .val { font-size:11px; color:#cfcfcf; text-align:right; font-variant-numeric:tabular-nums; }
+  .seg { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .seg button { flex:1; min-width:64px; background:#141517; color:#b9b9b9; border:1px solid var(--edge); font:inherit; font-size:11px; padding:6px 4px; cursor:pointer; }
+  .seg button.on { border-color:#7a7a7a; color:#fff; background:#1c1e21; }
+  .btn { width:100%; background:#141517; color:#d6d6d6; border:1px solid #3a3a3a; font:inherit; font-size:12px; padding:8px; cursor:pointer; margin-top:6px; }
+  .btn:hover { border-color:#8a8a8a; color:#fff; }
+  #look { white-space:pre-wrap; word-break:break-all; font-size:10px; color:#7f7f7f; background:#0a0b0c; border:1px solid var(--edge); padding:8px; margin-top:8px; max-height:150px; overflow:auto; }
+  .hint { font-size:10px; color:#5a5a5a; margin:4px 0 0; line-height:1.4; }
+  .fonts p { margin:6px 0; }
+  .fonts .vt { font-family:'VT323',monospace; font-size:22px; color:#d8d8d8; }
+  .fonts .mono { font-family:'IBM Plex Mono',monospace; font-size:13px; color:#c0c0c0; }
+  .fonts .serif { font-family:'IBM Plex Serif',serif; font-size:14px; color:#c8c8c8; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="scene2d"></canvas>
+    <canvas id="glcanvas"></canvas>
+  </div>
+  <div id="panel">
+    <h1>THE LONG WATCH</h1>
+    <p class="sub">Look lab. Nothing here ships — dial in the mood, hit <b>copy look</b>, and it becomes the spec the checkpoint UI adopts. Decoupled from <code>src/</code> so it never collides with the build.</p>
+
+    <div class="group">
+      <h2>Scene</h2>
+      <div class="seg" id="scene-seg">
+        <button data-scene="eye" class="on">the Eye</button>
+        <button data-scene="conveyor">conveyor</button>
+        <button data-scene="stamp">verdict</button>
+      </div>
+      <div class="seg" id="verdict-seg" hidden>
+        <button data-verdict="pass" class="on">PASS</button>
+        <button data-verdict="block">BLOCK</button>
+      </div>
+      <div class="row"><label>suspicion</label><input id="s-susp" type="range" min="0" max="1" step="0.01" value="0.28"><span class="val" id="v-susp">0.28</span></div>
+      <p class="hint">The Eye's pupil tightens and its focus ring closes as suspicion climbs. This is the tell the whole game hangs on.</p>
+    </div>
+
+    <div class="group">
+      <h2>Phosphor</h2>
+      <div class="seg" id="accent-seg">
+        <button data-accent="green" class="on">sickly green</button>
+        <button data-accent="amber">amber</button>
+        <button data-accent="ice">cold</button>
+      </div>
+      <div class="row"><label>levels</label><input id="s-levels" type="range" min="2" max="16" step="1" value="5"><span class="val" id="v-levels">5</span></div>
+      <div class="row"><label>dither</label><input id="s-dither" type="range" min="0" max="1" step="0.01" value="0.5"><span class="val" id="v-dither">0.50</span></div>
+      <div class="row"><label>chunk</label><input id="s-chunk" type="range" min="1" max="6" step="1" value="3"><span class="val" id="v-chunk">3</span></div>
+    </div>
+
+    <div class="group">
+      <h2>Tube</h2>
+      <div class="row"><label>curve</label><input id="s-curve" type="range" min="0" max="0.35" step="0.005" value="0.12"><span class="val" id="v-curve">0.12</span></div>
+      <div class="row"><label>scanline</label><input id="s-scan" type="range" min="0" max="0.6" step="0.01" value="0.28"><span class="val" id="v-scan">0.28</span></div>
+      <div class="row"><label>scan gap</label><input id="s-scangap" type="range" min="1" max="4" step="0.25" value="2"><span class="val" id="v-scangap">2.0</span></div>
+      <div class="row"><label>bloom</label><input id="s-bloom" type="range" min="0" max="2" step="0.02" value="0.9"><span class="val" id="v-bloom">0.90</span></div>
+      <div class="row"><label>aberr</label><input id="s-aberr" type="range" min="0" max="4" step="0.1" value="1.1"><span class="val" id="v-aberr">1.1</span></div>
+      <div class="row"><label>vignette</label><input id="s-vig" type="range" min="0" max="1.5" step="0.02" value="0.9"><span class="val" id="v-vig">0.90</span></div>
+      <div class="row"><label>flicker</label><input id="s-flick" type="range" min="0" max="1" step="0.02" value="0.5"><span class="val" id="v-flick">0.50</span></div>
+    </div>
+
+    <div class="group">
+      <h2>Type</h2>
+      <div class="fonts">
+        <p class="vt">THE EYE · SUSPICION 0.72 · BLOCK</p>
+        <p class="mono">precision/recall · leaked 3 · harassed 1</p>
+        <p class="serif">is this what you meant?</p>
+      </div>
+    </div>
+
+    <div class="group">
+      <button class="btn" id="btn-raw">toggle raw / CRT</button>
+      <button class="btn" id="btn-copy">copy look → clipboard</button>
+      <pre id="look"></pre>
+      <p class="hint">Open at <code>localhost:5173/art/playground.html</code> (vite is serving) or just open this file.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Low-res 2D scene → WebGL CRT (barrel, scanline, bloom, aberration, vignette,
+// flicker, ordered dither, palette quantise to one accent). Everything the
+// checkpoint UI will inherit lives in the `look` object at the bottom.
+// ---------------------------------------------------------------------------
+const scene = document.getElementById('scene2d');
+const sctx = scene.getContext('2d');
+const glc = document.getElementById('glcanvas');
+const SRC_W = 480, SRC_H = 300;              // internal resolution — deliberately low
+scene.width = SRC_W; scene.height = SRC_H;
+
+const ACCENTS = {
+  green: [0.42, 1.0, 0.46],
+  amber: [1.0, 0.62, 0.18],
+  ice:   [0.55, 0.85, 1.0],
+};
+
+const state = {
+  scene: 'eye', verdict: 'pass', accent: 'green',
+  susp: 0.28,
+  levels: 5, dither: 0.5, chunk: 3,
+  curve: 0.12, scan: 0.28, scangap: 2, bloom: 0.9, aberr: 1.1, vig: 0.9, flick: 0.5,
+};
+
+// ---------------- scene drawing (grayscale; the shader colorises) ----------------
+const hash = (n) => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
+
+function clear() { sctx.fillStyle = '#000'; sctx.fillRect(0, 0, SRC_W, SRC_H); }
+function px(x, y, w, h, l) { sctx.fillStyle = `rgb(${l*255|0},${l*255|0},${l*255|0})`; sctx.fillRect(x|0, y|0, w, h); }
+function vtext(txt, x, y, size, l, align='left') { sctx.fillStyle = `rgb(${l*255|0},${l*255|0},${l*255|0})`; sctx.font = `${size}px VT323, monospace`; sctx.textAlign = align; sctx.fillText(txt, x, y); sctx.textAlign='left'; }
+
+function drawEye(t) {
+  clear();
+  const cx = SRC_W * 0.5, cy = SRC_H * 0.46, R = 108;
+  const s = state.susp;
+  // agitation grows with suspicion
+  const jit = s * 2.4;
+  const jx = (hash(t*3.1) - 0.5) * jit, jy = (hash(t*3.7+9) - 0.5) * jit;
+
+  // outer socket haze
+  for (let i = 0; i < 3; i++) { sctx.globalAlpha = 0.06; sctx.beginPath(); sctx.arc(cx, cy, R + 26 + i*10, 0, 7); sctx.strokeStyle = '#fff'; sctx.lineWidth = 2; sctx.stroke(); }
+  sctx.globalAlpha = 1;
+
+  // iris radial fibres
+  const pr = (0.30 - 0.16 * s) * R * (1 + 0.03 * Math.sin(t * 2.2));   // pupil tightens with suspicion
+  const fibres = 200;
+  for (let i = 0; i < fibres; i++) {
+    const a = (i / fibres) * Math.PI * 2 + jx * 0.01;
+    const n = hash(i);
+    const len = R * (0.62 + 0.36 * hash(i * 1.7));
+    const bright = 0.30 + 0.55 * n + 0.15 * Math.sin(t * (0.6 + n) + i);
+    const x0 = cx + Math.cos(a) * (pr + 3), y0 = cy + Math.sin(a) * (pr + 3);
+    const x1 = cx + Math.cos(a) * len + jx, y1 = cy + Math.sin(a) * len + jy;
+    sctx.strokeStyle = `rgba(255,255,255,${(0.10 + 0.5 * n) * (0.5 + 0.5*bright)})`;
+    sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(x0, y0); sctx.lineTo(x1, y1); sctx.stroke();
+  }
+  // concentric rings
+  for (let k = 0; k < 5; k++) { const rr = pr + (R - pr) * (k + 1) / 6; sctx.globalAlpha = 0.10 + 0.05*k; sctx.beginPath(); sctx.arc(cx, cy, rr, 0, 7); sctx.strokeStyle = '#fff'; sctx.lineWidth = 1; sctx.stroke(); }
+  sctx.globalAlpha = 1;
+
+  // limbal ring (dark rim)
+  sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.strokeStyle = 'rgba(0,0,0,0.9)'; sctx.lineWidth = 6; sctx.stroke();
+  sctx.beginPath(); sctx.arc(cx, cy, R * 0.98, 0, 7); sctx.strokeStyle = 'rgba(255,255,255,0.5)'; sctx.lineWidth = 1.5; sctx.stroke();
+
+  // gaze sweep wedge
+  const ga = t * (0.7 + s * 1.8);
+  const grad = sctx.createConicGradient(ga, cx, cy);
+  grad.addColorStop(0, 'rgba(255,255,255,0)'); grad.addColorStop(0.03, `rgba(255,255,255,${0.12 + 0.18*s})`); grad.addColorStop(0.08, 'rgba(255,255,255,0)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+  sctx.save(); sctx.beginPath(); sctx.arc(cx, cy, R * 0.97, 0, 7); sctx.clip(); sctx.fillStyle = grad; sctx.fillRect(cx-R, cy-R, R*2, R*2); sctx.restore();
+
+  // pupil
+  sctx.beginPath(); sctx.arc(cx + jx*0.3, cy + jy*0.3, pr, 0, 7); sctx.fillStyle = '#000'; sctx.fill();
+  sctx.beginPath(); sctx.arc(cx + jx*0.3, cy + jy*0.3, pr, 0, 7); sctx.strokeStyle = `rgba(255,255,255,${0.6+0.4*s})`; sctx.lineWidth = 1.5; sctx.stroke();
+  // catchlight
+  px(cx - pr*0.4, cy - pr*0.4, 3, 3, 1);
+
+  // suspicion focus ring — closes inward as suspicion rises
+  const fr = R * (1.9 - 0.85 * s) + Math.sin(t*4)*2;
+  sctx.setLineDash([6, 6]); sctx.beginPath(); sctx.arc(cx, cy, fr, 0, 7); sctx.strokeStyle = `rgba(255,255,255,${0.25 + 0.55*s})`; sctx.lineWidth = 1; sctx.stroke(); sctx.setLineDash([]);
+  // corner reticle brackets on the focus ring
+  for (const [dx,dy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+    const bx = cx + dx*fr*0.72, by = cy + dy*fr*0.72;
+    sctx.strokeStyle = `rgba(255,255,255,${0.3+0.5*s})`; sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.moveTo(bx, by + dy*8); sctx.lineTo(bx, by); sctx.lineTo(bx + dx*8, by); sctx.stroke();
+  }
+
+  // readout
+  vtext('THE EYE', cx, cy + R + 34, 22, 0.8, 'center');
+  vtext(`SUSPICION ${state.susp.toFixed(2)}`, cx, cy + R + 54, 18, 0.5 + 0.5*s, 'center');
+  const bar = Math.round(s * 20); vtext('█'.repeat(bar) + '·'.repeat(20-bar), cx, cy + R + 72, 16, 0.4 + 0.6*s, 'center');
+}
+
+function drawConveyor(t) {
+  clear();
+  const beltY = SRC_H * 0.62;
+  // belt
+  for (let x = 0; x < SRC_W; x += 12) { const o = (t * 40) % 12; px(x - o, beltY, 7, 2, 0.25); }
+  px(0, beltY + 10, SRC_W, 1, 0.15);
+  // gaze cone from top-centre (the Eye is above, off-frame)
+  const gx = SRC_W * 0.52;
+  sctx.beginPath(); sctx.moveTo(gx, 0); sctx.lineTo(gx - 46, beltY); sctx.lineTo(gx + 46, beltY); sctx.closePath();
+  sctx.fillStyle = 'rgba(255,255,255,0.06)'; sctx.fill();
+  vtext('▼ THE EYE', gx, 22, 18, 0.6, 'center');
+  // crates sliding
+  const crates = [[0.14,'INNOCENT'],[0.30,'····'],[0.52,'INSPECT'],[0.72,'····'],[0.90,'····']];
+  for (const [fx, tag] of crates) {
+    const x = ((fx * SRC_W + t * 40) % (SRC_W + 80)) - 40;
+    drawCrate(x, beltY - 30, tag === 'INSPECT');
+    if (Math.abs(x - gx) < 24) vtext('scanning…', x, beltY + 26, 15, 0.7, 'center');
+  }
+  // portal + reject chute labels
+  vtext('PORTAL →', SRC_W - 8, beltY - 40, 16, 0.5, 'right');
+  vtext('↳ REJECT', 8, beltY + 34, 16, 0.5, 'left');
+}
+
+function drawCrate(x, y, hot) {
+  const w = 30, h = 26, l = hot ? 0.9 : 0.55;
+  px(x - w/2, y, w, h, 0.08);
+  // frame
+  sctx.strokeStyle = `rgba(255,255,255,${l})`; sctx.lineWidth = 1; sctx.strokeRect((x - w/2)|0 + 0.5, y + 0.5, w, h);
+  // faint work readout (scanlines of "code")
+  for (let i = 0; i < 4; i++) px(x - w/2 + 4, y + 5 + i*5, (hash(x+i)*w*0.6)|0, 1, 0.3);
+  if (hot) { // inspection glow bracket
+    sctx.strokeStyle = 'rgba(255,255,255,0.9)'; sctx.lineWidth = 1;
+    for (const [dx,dy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) { const bx = x + dx*(w/2+4), by = y + (dy<0?0:h) + dy*4; sctx.beginPath(); sctx.moveTo(bx, by+dy*6); sctx.lineTo(bx, by); sctx.lineTo(bx+dx*6, by); sctx.stroke(); }
+  }
+}
+
+function drawStamp(t) {
+  clear();
+  const cx = SRC_W*0.5, cy = SRC_H*0.5;
+  drawCrate(cx, cy - 14, false);
+  const pass = state.verdict === 'pass';
+  const txt = pass ? 'PASS' : 'BLOCK';
+  sctx.save();
+  sctx.translate(cx, cy + 6); sctx.rotate(-0.12);
+  const w = pass ? 128 : 150, h = 54;
+  sctx.lineWidth = 4; sctx.strokeStyle = 'rgba(255,255,255,0.92)'; sctx.strokeRect(-w/2, -h/2, w, h);
+  sctx.lineWidth = 2; sctx.strokeRect(-w/2-5, -h/2-5, w+10, h+10);
+  vtext(txt, 0, 14, 46, 0.95, 'center');
+  sctx.restore();
+  if (!pass) { // reject arrow
+    vtext('↳ pulled aside', cx, cy + 70, 18, 0.6, 'center');
+  } else {
+    vtext('→ to portal', cx, cy + 70, 18, 0.6, 'center');
+  }
+}
+
+function drawScene(t) {
+  if (state.scene === 'eye') drawEye(t);
+  else if (state.scene === 'conveyor') drawConveyor(t);
+  else drawStamp(t);
+}
+
+// ---------------- WebGL CRT ----------------
+const VS = `attribute vec2 p; varying vec2 v; void main(){ v = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
+const FS = `
+precision highp float;
+uniform sampler2D u_tex; uniform vec2 u_res; uniform vec2 u_src; uniform float u_time;
+uniform float u_curve,u_scan,u_scangap,u_bloom,u_aberr,u_vig,u_flicker,u_dither,u_levels,u_chunk;
+uniform vec3 u_accent;
+varying vec2 v;
+float bayer2(vec2 a){ a = floor(a); return fract(dot(a, vec2(0.5, a.y*0.75))); }
+float bayer4(vec2 a){ return bayer2(0.5*a)*0.25 + bayer2(a); }
+vec2 barrel(vec2 uv){ vec2 c = uv*2.0-1.0; float r2 = dot(c,c); c *= 1.0 + u_curve*r2; return c*0.5+0.5; }
+float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }
+void main(){
+  vec2 uv = barrel(v);
+  if(uv.x<0.||uv.x>1.||uv.y<0.||uv.y>1.){ gl_FragColor = vec4(0.,0.,0.,1.); return; }
+  vec2 px = 1.0/u_src;
+  float l  = lum(texture2D(u_tex, uv + vec2(u_aberr*px.x,0.)).rgb)*0.5
+           + lum(texture2D(u_tex, uv).rgb)*0.5;
+  // bloom
+  float bl = 0.0;
+  bl += lum(texture2D(u_tex, uv + px*vec2( 1.5,0.)).rgb);
+  bl += lum(texture2D(u_tex, uv + px*vec2(-1.5,0.)).rgb);
+  bl += lum(texture2D(u_tex, uv + px*vec2(0., 1.5)).rgb);
+  bl += lum(texture2D(u_tex, uv + px*vec2(0.,-1.5)).rgb);
+  bl += lum(texture2D(u_tex, uv + px*vec2(2.5,2.5)).rgb);
+  bl += lum(texture2D(u_tex, uv + px*vec2(-2.5,-2.5)).rgb);
+  l += bl * (u_bloom/6.0);
+  // ordered dither + quantise (chunky)
+  float d = (bayer4(gl_FragCoord.xy / u_chunk) - 0.5) * u_dither;
+  l = clamp(l + d, 0.0, 1.0);
+  l = floor(l * (u_levels-1.0) + 0.5) / (u_levels-1.0);
+  vec3 col = u_accent * l;
+  // scanlines
+  float scan = 1.0 - u_scan * (0.5 + 0.5*sin(uv.y * u_res.y * (3.14159/u_scangap)));
+  col *= scan;
+  // vignette
+  float dd = length(v*2.0-1.0);
+  col *= mix(1.0, smoothstep(1.4,0.35,dd), u_vig);
+  // flicker
+  col *= 1.0 - u_flicker*(0.5+0.5*sin(u_time*118.0))*0.06;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+let gl, prog, tex, U = {};
+function initGL() {
+  gl = glc.getContext('webgl', { antialias:false, premultipliedAlpha:false });
+  if (!gl) { document.body.classList.add('raw'); return false; }
+  const sh = (t,s) => { const o = gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o); if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(o); return o; };
+  prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER,VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER,FS)); gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+  tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  for (const n of ['u_tex','u_res','u_src','u_time','u_curve','u_scan','u_scangap','u_bloom','u_aberr','u_vig','u_flicker','u_dither','u_levels','u_chunk','u_accent']) U[n] = gl.getUniformLocation(prog, n);
+  return true;
+}
+function resize() {
+  const r = glc.getBoundingClientRect(); const dpr = Math.min(devicePixelRatio||1, 2);
+  glc.width = r.width*dpr|0; glc.height = r.height*dpr|0;
+}
+function drawGL(t) {
+  if (!gl) return;
+  gl.viewport(0,0,glc.width,glc.height);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scene);
+  gl.uniform1i(U.u_tex,0);
+  gl.uniform2f(U.u_res, glc.width, glc.height);
+  gl.uniform2f(U.u_src, SRC_W, SRC_H);
+  gl.uniform1f(U.u_time, t);
+  gl.uniform1f(U.u_curve, state.curve); gl.uniform1f(U.u_scan, state.scan); gl.uniform1f(U.u_scangap, state.scangap);
+  gl.uniform1f(U.u_bloom, state.bloom); gl.uniform1f(U.u_aberr, state.aberr); gl.uniform1f(U.u_vig, state.vig);
+  gl.uniform1f(U.u_flicker, state.flick); gl.uniform1f(U.u_dither, state.dither); gl.uniform1f(U.u_levels, state.levels); gl.uniform1f(U.u_chunk, state.chunk);
+  const a = ACCENTS[state.accent]; gl.uniform3f(U.u_accent, a[0], a[1], a[2]);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+// ---------------- controls ----------------
+const bind = (id, key, fmt = (v)=>v) => {
+  const el = document.getElementById('s-'+id), out = document.getElementById('v-'+id);
+  const upd = () => { state[key] = parseFloat(el.value); out.textContent = fmt(state[key]); updateLook(); };
+  el.addEventListener('input', upd); upd();
+};
+bind('susp','susp',v=>v.toFixed(2)); bind('levels','levels',v=>v|0); bind('dither','dither',v=>v.toFixed(2));
+bind('chunk','chunk',v=>v|0); bind('curve','curve',v=>v.toFixed(2)); bind('scan','scan',v=>v.toFixed(2));
+bind('scangap','scangap',v=>v.toFixed(1)); bind('bloom','bloom',v=>v.toFixed(2)); bind('aberr','aberr',v=>v.toFixed(1));
+bind('vig','vig',v=>v.toFixed(2)); bind('flick','flick',v=>v.toFixed(2));
+
+function seg(segId, key, onChange) {
+  document.querySelectorAll(`#${segId} button`).forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll(`#${segId} button`).forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); state[key] = b.dataset[key.replace('scene','scene')] || b.dataset.accent || b.dataset.verdict || b.dataset.scene;
+    onChange && onChange(); updateLook();
+  }));
+}
+document.querySelectorAll('#scene-seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#scene-seg button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  state.scene = b.dataset.scene; document.getElementById('verdict-seg').hidden = state.scene !== 'stamp'; updateLook();
+}));
+document.querySelectorAll('#verdict-seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#verdict-seg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); state.verdict = b.dataset.verdict;
+}));
+document.querySelectorAll('#accent-seg button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#accent-seg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); state.accent = b.dataset.accent; updateLook();
+}));
+document.getElementById('btn-raw').addEventListener('click', () => document.body.classList.toggle('raw'));
+document.getElementById('btn-copy').addEventListener('click', async () => {
+  const j = lookJSON(); try { await navigator.clipboard.writeText(j); } catch {}
+  const el = document.getElementById('btn-copy'); el.textContent = 'copied ✓'; setTimeout(()=>el.textContent='copy look → clipboard', 1200);
+});
+
+function lookJSON() {
+  const a = ACCENTS[state.accent];
+  return JSON.stringify({
+    accent: state.accent, accentRGB: a,
+    crt: { curve:state.curve, scan:state.scan, scanGap:state.scangap, bloom:state.bloom, aberration:state.aberr, vignette:state.vig, flicker:state.flick },
+    phosphor: { levels:state.levels, dither:state.dither, chunk:state.chunk },
+    srcResolution: [SRC_W, SRC_H],
+  }, null, 2);
+}
+function updateLook() { document.getElementById('look').textContent = lookJSON(); }
+
+// ---------------- loop ----------------
+const ok = initGL(); resize(); new ResizeObserver(resize).observe(glc); updateLook();
+function frame(ms) { const t = ms/1000; drawScene(t); drawGL(t); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
