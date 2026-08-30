@@ -21,10 +21,9 @@ import type { Command, GameEvent, GameState } from '../core/types'
 const PORT = Number(process.env.PORT ?? 8787)
 const SEED = Number(process.env.SEED ?? 7)
 const MODE = (process.env.MODE ?? 'sim') as 'sim' | 'seed' | 'live'
-// FAST MODE (hardcoded): minimal artificial pacing — only the real Codex audit
-// gates the tempo now. Still env-overridable if you want it slower.
-const STEP_MS = Number(process.env.STEP_MS ?? 60)
-const INSPECT_STEPS = Number(process.env.INSPECT_STEPS ?? 4)
+// Realistic default pacing: live boxes should take a few seconds to cross, not flash by.
+const STEP_MS = Number(process.env.STEP_MS ?? (MODE === 'live' ? 700 : 200))
+const INSPECT_STEPS = Number(process.env.INSPECT_STEPS ?? (MODE === 'live' ? 14 : 6))
 const BUILD_CC = Number(process.env.BUILD_CC ?? (MODE === 'live' ? 3 : 1))
 const WAVE_SIZE = Number(process.env.WAVE_SIZE ?? (MODE === 'live' ? 5 : 10))
 // Which real components to use (live mode). Default: offline+free (local + fake heuristic Eye),
@@ -70,9 +69,9 @@ async function runLiveOrSim() {
   const build = await getBuild()
   const cfg = {
     seed: SEED, waveSize: WAVE_SIZE, baseRate: 0.3, stepDelayMs: STEP_MS,
-    inspectSteps: INSPECT_STEPS, arrivalMs: Number(process.env.ARRIVAL_MS ?? 120), buildConcurrency: BUILD_CC,
+    inspectSteps: INSPECT_STEPS, arrivalMs: 350, buildConcurrency: BUILD_CC,
     maxLiveSandboxes: Number(process.env.MAX_LIVE ?? 6),
-    portalDwellMs: Number(process.env.PORTAL_DWELL ?? 250),
+    portalDwellMs: Number(process.env.PORTAL_DWELL ?? 2600),
     mode: (MODE === 'live' ? 'live' : 'sim') as 'live' | 'sim',
   }
 
