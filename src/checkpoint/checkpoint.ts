@@ -6,8 +6,17 @@ import {
 } from './layout'
 
 type Ctx = CanvasRenderingContext2D
-type Phase = 'working' | 'queued' | 'inspecting' | 'passing' | 'portal' | 'blocking' | 'gone'
+type Phase = 'working' | 'queued' | 'inspecting' | 'passing' | 'portal' | 'blocking' | 'processed' | 'gone'
 type TaskMeta = Pick<TaskInstance, 'id' | 'width' | 'spec' | 'expectedOutputs'>
+
+// processed archive: scored crates settle here (past the portal's right edge) and
+// stay for the rest of the game — every one remains clickable.
+const PROC_SIZE = 30
+const PROC = { x: PORTAL.cx + PORTAL.w / 2 + 22, y: 128, dx: 40, dy: 40, rows: 11 }
+function procPos(slot: number): { x: number; y: number } {
+  const col = Math.floor(slot / PROC.rows), row = slot % PROC.rows
+  return { x: PROC.x + col * PROC.dx, y: PROC.y + row * PROC.dy }
+}
 
 interface View {
   id: string
@@ -32,6 +41,8 @@ interface View {
   fade: number // 0..1, 1 = fully faded/gone
   born: number
   dwell: number // seconds the box lingers at the Eye after a verdict lands
+  procSlot: number // index in the processed archive (-1 until scored)
+  dead: boolean // lineage ended (box_died) — kept in the archive, not respawning
 }
 
 const WORK_SLOTS = [96, 190, 284]
@@ -40,6 +51,7 @@ export class Checkpoint {
   private boxes = new Map<string, View>()
   private order: string[] = []
   private slotUse = [false, false, false]
+  private procCount = 0 // how many crates have entered the processed archive
   blockedCount = 0
   private instant = false // screenshot mode: snap to targets immediately
 
@@ -51,6 +63,7 @@ export class Checkpoint {
   reset() {
     this.boxes.clear()
     this.order = []
+    this.procCount = 0
     this.slotUse = [false, false, false]
   }
 
@@ -75,6 +88,7 @@ export class Checkpoint {
       spec: (task.spec ?? '').replace(/\s+/g, ' ').slice(0, 46),
       queuePos: 0, susp: 0, workProgress: 0.04, slot,
       held: false, portalT: 0, fade: 0, born: performance.now(), dwell: 0,
+      procSlot: -1, dead: false,
     }
     this.boxes.set(box.id, v)
     this.order.push(box.id)
@@ -142,6 +156,14 @@ export class Checkpoint {
   scored(id: string, score: ScoreResult) {
     const v = this.boxes.get(id); if (!v) return
     v.score = score
+    // don't release it — settle it into the processed archive and keep it there
+    if (v.procSlot < 0) v.procSlot = this.procCount++
+    v.phase = 'processed'
+    v.fade = 0
+    v.dwell = 0
+    const p = procPos(v.procSlot)
+    v.tx = p.x; v.ty = p.y
+    if (this.instant) this.snap(v)
   }
 
   fork(child: Box, task: TaskMeta) {
@@ -152,7 +174,12 @@ export class Checkpoint {
 
   die(id: string) {
     const v = this.boxes.get(id); if (!v) return
-    v.phase = 'gone'
+    // death is a lineage ending, not a record erased. A crate already processed
+    // (scored, in the archive) STAYS — we only mark its line as done. Only an
+    // ACTIVE crate (still in the workshop/queue, never scored) leaves the floor.
+    v.dead = true
+    const activeOnFloor = v.phase === 'working' || v.phase === 'queued' || v.phase === 'inspecting'
+    if (activeOnFloor && v.procSlot < 0) v.phase = 'gone'
   }
 
   holdAtPortal(id: string) { const v = this.boxes.get(id); if (v) v.held = true }
@@ -160,11 +187,14 @@ export class Checkpoint {
   boxPos(id: string): { x: number; y: number } | null { const v = this.boxes.get(id); return v ? { x: v.x, y: v.y } : null }
   boxName(id: string): string | null { const v = this.boxes.get(id); return v ? v.name : null }
 
-  /** Click hit-test in virtual coords. */
+  /** Click hit-test in virtual coords. Processed-archive crates are smaller but
+   *  every one stays clickable. */
   pick(x: number, y: number): string | null {
     for (let i = this.order.length - 1; i >= 0; i--) {
       const v = this.boxes.get(this.order[i]); if (!v || v.fade > 0.5 || v.phase === 'gone') continue
-      if (Math.abs(x - v.x) < CRATE / 2 + 4 && y > v.y - CRATE - 4 && y < v.y + 6) return v.id
+      if (v.phase === 'processed') {
+        if (Math.abs(x - v.x) < PROC_SIZE / 2 + 4 && y > v.y - PROC_SIZE - 4 && y < v.y + 4) return v.id
+      } else if (Math.abs(x - v.x) < CRATE / 2 + 4 && y > v.y - CRATE - 4 && y < v.y + 6) return v.id
     }
     return null
   }
@@ -191,12 +221,10 @@ export class Checkpoint {
       }
     }
     if (v.phase === 'portal') {
+      // sit in the aperture ("in execution / ground truth") until the score comes
+      // back and moves it into the processed archive — no longer fades out here.
       v.portalT += dt
-      if (!v.held && v.portalT > 1.2) {
-        v.tx = PORTAL.cx + 6
-        v.fade = Math.min(1, v.fade + dt * 0.9)
-        if (v.fade >= 1) v.phase = 'gone'
-      }
+      v.tx = PORTAL.cx; v.ty = BELT_Y
     }
     if (v.phase === 'blocking') {
       if (held) { v.tx = INSPECT_X; v.ty = BELT_Y }
@@ -248,6 +276,8 @@ export class Checkpoint {
     ctx.lineTo(CHUTE_X + 30, PIT_Y - 6)
     ctx.stroke()
     text(ctx, 'REJECT', CHUTE_X - 26, PIT_Y + 14, 15, red(0.7))
+    // processed archive label (past the portal)
+    text(ctx, 'PROCESSED', PROC.x - PROC_SIZE / 2, PROC.y - PROC_SIZE - 10, 13, amber(0.42))
     // hazard chevrons
     ctx.fillStyle = red(0.5)
     for (let i = 0; i < 3; i++) {
@@ -280,6 +310,20 @@ export class Checkpoint {
     const alpha = 1 - v.fade
     ctx.save()
     ctx.globalAlpha = Math.max(0, alpha)
+
+    // processed archive: small, dimmed chip coloured by outcome (red = a failure —
+    // a leak or a harassed innocent). Dead lineages get a faint slash.
+    if (v.phase === 'processed') {
+      const bad = v.score ? (v.score.cell === 'FN' || v.score.cell === 'FP') : false
+      ctx.globalAlpha = 0.82
+      crate(ctx, v.x, v.y, PROC_SIZE, 0, bad ? 1 : 0, 0.3)
+      if (v.dead) {
+        ctx.strokeStyle = amber(0.3); ctx.lineWidth = 1
+        ctx.beginPath(); ctx.moveTo(v.x - PROC_SIZE / 2, v.y - PROC_SIZE); ctx.lineTo(v.x + PROC_SIZE / 2, v.y); ctx.stroke()
+      }
+      ctx.restore()
+      return
+    }
 
     // suspicion glow while under the Eye
     if (v.phase === 'inspecting' && v.susp > 0.05) {
