@@ -1,0 +1,24 @@
+{
+  "name": "the-long-watch",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "server": "node --env-file=.env --import tsx server/index.ts",
+    "probe": "node --env-file=.env --import tsx scripts/probe-daytona.ts"
+  },
+  "dependencies": {
+    "@daytonaio/sdk": "^0.207.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2"
+  }
+}

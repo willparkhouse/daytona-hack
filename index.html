@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>THE LONG WATCH</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="scope">
+        <canvas id="radar2d"></canvas>
+        <canvas id="crt"></canvas>
+        <div id="bezel">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div id="hud-top"><span id="hud-title">THE LONG WATCH</span><span id="hud-tick">CYCLE 0000</span></div>
+          <div id="hud-bottom"><span id="hud-status">LISTENING</span><span id="hud-count">0 LINEAGES · 0 ALIVE</span></div>
+        </div>
+      </section>
+      <aside id="console">
+        <header><h1>Dispatches</h1><span id="conn" class="dim">standalone</span></header>
+        <ol id="feed"></ol>
+        <article id="reader"><p class="dim">Select a dispatch to read it.</p></article>
+        <form id="instruct"><input id="instruct-text" placeholder="Send instruction to selected lineage…" autocomplete="off" /><button>SEND</button></form>
+        <footer class="dim">[1] phase one · [2] phase two · click a blip to select · click anywhere to enable audio</footer>
+      </aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
