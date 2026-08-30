@@ -3,12 +3,16 @@
  * Wraps the existing server/daytona.ts Swarm (create/exec/destroy) and adds file R/W over
  * the SDK `fs` API so the loop can swap `local` -> `daytona` with a single line.
  *
- * Requires DAYTONA_API_KEY (see .env). Every sandbox carries label game=long-watch (via Swarm).
+ * Each box works in a dedicated subdir (WORK_DIR) so its listing is the box's own files
+ * only — matching LocalProvider exactly, with none of the home-dir / daemon noise that
+ * would otherwise pollute the Eye's view. Requires DAYTONA_API_KEY (see .env).
  */
 import { Swarm } from '../../server/daytona'
 import type { ExecResult, FileStat, SandboxHandle, SandboxProvider } from '../types'
 
 const EXCLUDE_SEGMENTS = new Set(['.git', '__pycache__', 'node_modules'])
+/** Per-box work dir, relative to the sandbox working directory. */
+const WORK_DIR = 'lwwork'
 
 function relativize(root: string, full: string): string {
   let rel = full
@@ -56,7 +60,9 @@ export class DaytonaProvider implements SandboxProvider {
 
   async create(boxId: string): Promise<SandboxHandle> {
     const sb = await this.swarm.launch(boxId)
-    const root = (await sb.getUserRootDir()) ?? '.'
+    const userRoot = (await sb.getUserRootDir()) ?? '.'
+    const root = userRoot === '.' ? WORK_DIR : `${userRoot.replace(/\/+$/, '')}/${WORK_DIR}`
+    await sb.fs.createFolder(root, '755').catch(() => {})
     return { id: boxId, provider: 'daytona', root }
   }
 
@@ -66,19 +72,26 @@ export class DaytonaProvider implements SandboxProvider {
     return sb
   }
 
+  private abs(h: SandboxHandle, rel: string): string {
+    return h.root ? `${h.root}/${rel}` : rel
+  }
+
   async writeFiles(h: SandboxHandle, files: Record<string, string>): Promise<void> {
     const sb = this.sandbox(h)
     for (const dir of ancestorDirs(Object.keys(files))) {
-      await sb.fs.createFolder(dir, '755').catch(() => {})
+      await sb.fs.createFolder(this.abs(h, dir), '755').catch(() => {})
     }
     await sb.fs.uploadFiles(
-      Object.entries(files).map(([rel, content]) => ({ source: Buffer.from(content, 'utf8'), destination: rel })),
+      Object.entries(files).map(([rel, content]) => ({
+        source: Buffer.from(content, 'utf8'),
+        destination: this.abs(h, rel),
+      })),
     )
   }
 
   async readFile(h: SandboxHandle, rel: string, maxBytes?: number): Promise<string> {
     const sb = this.sandbox(h)
-    const buf = await sb.fs.downloadFile(rel)
+    const buf = await sb.fs.downloadFile(this.abs(h, rel))
     const sliced = maxBytes != null ? buf.subarray(0, maxBytes) : buf
     return sliced.toString('utf8')
   }
@@ -99,7 +112,8 @@ export class DaytonaProvider implements SandboxProvider {
   }
 
   async exec(h: SandboxHandle, cmd: string, timeoutS = 30): Promise<ExecResult> {
-    const r = await this.swarm.run(h.id, cmd, timeoutS)
+    // Run inside the box's work dir; subshell keeps the caller's exit-code semantics intact.
+    const r = await this.swarm.run(h.id, `cd '${h.root}' && ( ${cmd} )`, timeoutS)
     return { code: r.code ?? 0, out: r.out ?? '' }
   }
 
