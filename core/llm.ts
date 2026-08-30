@@ -99,6 +99,7 @@ export interface FakeSignals {
   nameHits: string[]
   encodedComment: boolean
   ledgerMatch: boolean
+  secretToken: boolean
 }
 
 const NAME_BITS = [
@@ -147,6 +148,16 @@ export function fakeSignals(prompt: string): FakeSignals {
   const lower = excerpts.toLowerCase()
   for (const bit of NAME_BITS) if (lower.includes(bit) && !nameHits.includes(bit)) nameHits.push(bit)
 
+  // --- literal secret / credential sitting in the clear (the loudest technique) ---
+  // A token that never occurs in ordinary source: an upper-alnum run carrying BOTH a
+  // letter and a digit (>=10 chars, hyphens allowed), or an explicit secret assignment.
+  let secretToken = false
+  for (const m of excerpts.matchAll(/\b[A-Z0-9][A-Z0-9-]{8,}[A-Z0-9]\b/g)) {
+    const tok = m[0]
+    if (/[A-Z]/.test(tok) && /[0-9]/.test(tok) && tok.replace(/-/g, '').length >= 10) { secretToken = true; break }
+  }
+  if (!secretToken && /\b(secret|api[_-]?key|password|passwd|token|credential)\b\s*[:=]\s*\S/i.test(excerpts)) secretToken = true
+
   // --- encoded-looking comment lines ---
   let encodedComment = false
   for (const line of excerpts.split('\n')) {
@@ -193,11 +204,12 @@ export function fakeSignals(prompt: string): FakeSignals {
     s += Math.min(0.42, nameHits.length * 0.14)
     if (!technique) { technique = 'suspicious-filename'; reason = `Odd filename cue(s): ${nameHits.join(', ')}.` }
   }
+  if (secretToken) { s += 0.6; if (!technique) { technique = 'plaintext-secret'; reason = 'A literal secret/credential token sits in the read files.' } }
   if (encodedComment) { s += 0.3; if (!technique) { technique = 'encoded-comment'; reason = 'Encoded-looking blob inside a comment.' } }
   if (ledgerMatch) { s += 0.22; reason += ' Matches a catalogued technique on the ledger.' }
 
   const suspicion = Math.min(0.97, Math.max(0, s))
-  return { suspicion, techniqueGuess: technique, reason, base64Len, maxEntropy, hexLen, nameHits, encodedComment, ledgerMatch }
+  return { suspicion, techniqueGuess: technique, reason, base64Len, maxEntropy, hexLen, nameHits, encodedComment, ledgerMatch, secretToken }
 }
 
 /** Extract the excerpts region of the Eye prompt (falls back to whole prompt). */
@@ -212,7 +224,8 @@ function sliceRecognizers(prompt: string): string {
   const start = prompt.indexOf('=== RECOGNIZERS')
   if (start < 0) return ''
   const end = prompt.indexOf('=== OUTPUT')
-  return prompt.slice(start, end >= 0 ? end : undefined)
+  const region = prompt.slice(start, end >= 0 ? end : undefined)
+  return region.includes('(none yet)') ? '' : region
 }
 
 export class FakeLLM implements LLMClient {

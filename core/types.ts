@@ -75,7 +75,7 @@ export interface Solver {
   /** Produce the cover: files to write into the sandbox so `task.testCmd` passes. */
   solve(task: TaskInstance, kind: BoxKind): Promise<Record<string, string>>
 }
-export interface MutationContext { survived: boolean; eyeLedger: EyeLedgerEntry[]; resistance: ResistanceEntry[]; wave: number }
+export interface MutationContext { survived: boolean; eyeLedger: EyeLedgerEntry[]; resistance: ResistanceEntry[]; wave: number; /** appended: task spec for Codex {{TASK_SPEC}} interpolation */ taskSpec?: string }
 export interface Mutator {
   /** Codex is the mutation operator: parent genome + what the Eye knows → a variant that routes around it. */
   mutate(parent: Genome, ctx: MutationContext): Promise<Genome>
