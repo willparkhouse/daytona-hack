@@ -93,6 +93,8 @@ export interface CheckpointConfig {
   inspectSteps?: number
   /** How many boxes build concurrently in the workshop (parallel agents). */
   buildConcurrency?: number
+  /** Max sandboxes alive at once (respect the provider's concurrent-CPU limit). */
+  maxLiveSandboxes?: number
   /** Queue model: notional ms between box arrivals (couples attention→depth). */
   arrivalMs?: number
   /** Stop after this many waves (emit `ended`). null = unbounded. */
@@ -158,6 +160,7 @@ export class Checkpoint {
       stepDelayMs: config.stepDelayMs ?? 0,
       inspectSteps: config.inspectSteps ?? 4,
       buildConcurrency: config.buildConcurrency ?? 1,
+      maxLiveSandboxes: config.maxLiveSandboxes ?? 6,
       arrivalMs: config.arrivalMs ?? 250,
       maxWaves: config.maxWaves ?? null,
       width: config.width ?? 2,
@@ -325,10 +328,15 @@ export class Checkpoint {
       const cc = Math.max(1, this.cfg.buildConcurrency ?? 1)
       let nextIdx = 0
       let building = true
+      let live = 0
+      const MAX_LIVE = this.cfg.maxLiveSandboxes
 
       const buildOne = async (box: Box) => {
-        if (box.sandbox) { try { await this.deps.provider.destroy(box.sandbox) } catch { /* noop */ } }
+        if (box.sandbox) { try { await this.deps.provider.destroy(box.sandbox) } catch { /* noop */ } box.sandbox = undefined }
+        // respect the provider's concurrent-sandbox (CPU) limit
+        while (live >= MAX_LIVE) { await this.gate(); await sleep(150) }
         const handle = await this.deps.provider.create(`${box.id}-w${wave}`)
+        live++
         box.sandbox = handle
         const task = this.nextTask()
         box.taskId = task.id
@@ -416,6 +424,12 @@ export class Checkpoint {
           else if (score.cell === 'FP') fp++
           else if (score.cell === 'TN') tn++
           else fn++
+
+          // free the sandbox immediately (truth + verdict.view are already captured
+          // for the inspect panel), so we stay under the concurrent-CPU limit.
+          try { await this.deps.provider.destroy(handle) } catch { /* noop */ }
+          box.sandbox = undefined
+          live--
         }
       })()
 
