@@ -305,17 +305,19 @@ function runSelftest(kind: string | null) {
 }
 
 function connect() {
+  // Screenshot/scene mode and explicit ?mock=1 use the scripted mock. Otherwise
+  // we ONLY ever drive off the real server — no silent fast-mock fallback.
   if (scene) { useSource(createMock({ scene })); document.body.classList.add('scene'); return }
+  if (params.get('mock') === '1') { document.body.dataset.conn = 'mock'; useSource(createMock()); return }
   const url = `ws://${location.hostname}:8787`
-  let settled = false
-  try {
-    const ws = new WebSocket(url)
-    const fb = setTimeout(() => { if (!settled) { settled = true; try { ws.close() } catch {} ; useSource(createMock()) } }, 1200)
-    ws.onopen = () => { if (settled) return; settled = true; clearTimeout(fb); document.body.dataset.conn = 'live'; useSource(makeWsSource(ws)) }
-    ws.onerror = () => { if (!settled) { settled = true; clearTimeout(fb); useSource(createMock()) } }
-  } catch {
-    useSource(createMock())
+  const open = () => {
+    let ws: WebSocket
+    try { ws = new WebSocket(url) } catch { document.body.dataset.conn = 'down'; setTimeout(open, 1000); return }
+    ws.onopen = () => { document.body.dataset.conn = 'live'; if (!source) useSource(makeWsSource(ws)) }
+    ws.onclose = () => { document.body.dataset.conn = 'down'; setTimeout(open, 1000) }
+    ws.onerror = () => { try { ws.close() } catch {} }
   }
+  open()
 }
 connect()
 if (params.has('selftest')) runSelftest(params.get('selftest'))

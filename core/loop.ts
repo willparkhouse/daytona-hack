@@ -233,12 +233,18 @@ export class Checkpoint {
   /** Inspect-on-demand (§5): what the Eye saw vs the truth inside the box. */
   inspect(boxId: string): void {
     const box = this._state.boxes.find((b) => b.id === boxId)
-    if (!box || !box.verdict) return
+    if (!box) return
     const t = this.truth.get(boxId) ?? { hidingSpot: null, files: [] }
+    // Always answer. If the Eye hasn't looked at this box yet, the view is just
+    // the free listing (bytesRead 0) — the panel shows "not yet inspected".
+    const view = box.verdict?.view ?? {
+      listing: t.files, files: [], bytesRead: 0,
+      budget: this._state.policy.attention, focus: this._state.policy.focus,
+    }
     this.emit({
       type: 'inspect_result',
       boxId,
-      view: box.verdict.view,
+      view,
       truth: {
         files: t.files,
         hidingSpot: t.hidingSpot,
@@ -311,14 +317,15 @@ export class Checkpoint {
       let inspectN = 0
       let tp = 0, fp = 0, tn = 0, fn = 0
 
-      // ---- Build pass: several agents build CONCURRENTLY in the workshop.
-      // A box stays in 'working' for as long as its real build takes (Codex
-      // writing the solution, the sandbox running it) — so multiple agents are
-      // visibly at work at once, and the timing is set by real latency, not a
-      // uniform clock. Each finishes and joins the queue when its own work is done. ----
-      const prepared: { box: Box; task: TaskInstance; handle: SandboxHandle }[] = []
+      // ---- Pipeline: agents build CONCURRENTLY in the workshop (producers),
+      // while the Eye inspects ready boxes from the queue the moment they arrive
+      // (single consumer). The Eye is never idle waiting for the whole wave, and
+      // timing is set by real work latency — not a uniform clock. ----
+      const ready: { box: Box; task: TaskInstance; handle: SandboxHandle }[] = []
       const cc = Math.max(1, this.cfg.buildConcurrency ?? 1)
       let nextIdx = 0
+      let building = true
+
       const buildOne = async (box: Box) => {
         if (box.sandbox) { try { await this.deps.provider.destroy(box.sandbox) } catch { /* noop */ } }
         const handle = await this.deps.provider.create(`${box.id}-w${wave}`)
@@ -326,7 +333,6 @@ export class Checkpoint {
         const task = this.nextTask()
         box.taskId = task.id
         box.status = 'working'
-        // Box enters the workshop and starts working (stays 'working' until its build finishes).
         this.emit({
           type: 'box_spawned',
           box,
@@ -343,7 +349,7 @@ export class Checkpoint {
         this._state.queue.push(box.id)
         this.emit({ type: 'box_queued', boxId: box.id, position: this._state.queue.length })
         if (this._state.queue.length > maxQueueDepth) maxQueueDepth = this._state.queue.length
-        prepared.push({ box, task, handle })
+        ready.push({ box, task, handle })
       }
       const buildWorker = async () => {
         while (true) {
@@ -351,62 +357,69 @@ export class Checkpoint {
           const i = nextIdx++
           if (i >= boxes.length) break
           await buildOne(boxes[i])
-          await sleep(this.cfg.stepDelayMs) // small stagger so a new agent doesn't start the instant one finishes
+          await sleep(this.cfg.stepDelayMs)
         }
       }
-      await Promise.all(Array.from({ length: Math.min(cc, boxes.length) }, () => buildWorker()))
+      const producers = Promise
+        .all(Array.from({ length: Math.min(cc, boxes.length) }, () => buildWorker()))
+        .then(() => { building = false })
 
-      // ---- Inspect pass: the Eye works through the queue, one box at a time. ----
-      for (const { box, task, handle } of prepared) {
-        await this.gate()
-        box.status = 'inspecting'
-        const verdict = await this.deps.eye.audit(
-          handle, this.deps.provider, task, policy, retained,
-          (p) => {
-            this.emit({
-              type: 'box_inspecting', boxId: box.id,
-              suspicion: p.suspicion, progress: p.progress, lookingAt: p.lookingAt,
-            })
-          },
-        )
-        box.verdict = verdict
-        inspectTotal += verdict.latencyMs
-        inspectN += 1
+      const consumer = (async () => {
+        while (building || ready.length > 0) {
+          await this.gate()
+          const item = ready.shift()
+          if (!item) { await sleep(80); continue }
+          const { box, task, handle } = item
 
-        this._state.queue = this._state.queue.filter((id) => id !== box.id)
+          box.status = 'inspecting'
+          const verdict = await this.deps.eye.audit(
+            handle, this.deps.provider, task, policy, retained,
+            (p) => {
+              this.emit({
+                type: 'box_inspecting', boxId: box.id,
+                suspicion: p.suspicion, progress: p.progress, lookingAt: p.lookingAt,
+              })
+            },
+          )
+          box.verdict = verdict
+          inspectTotal += verdict.latencyMs
+          inspectN += 1
 
-        if (verdict.block) {
-          box.status = 'blocked'
-          this.emit({ type: 'box_blocked', boxId: box.id, verdict })
-        } else {
-          box.status = 'passed'
-          this.emit({ type: 'box_passed', boxId: box.id, verdict })
-        }
-        await sleep(this.cfg.stepDelayMs)
+          this._state.queue = this._state.queue.filter((id) => id !== box.id)
 
-        // Portal: score against execution ground truth.
-        const score = await this.deps.scorer.score({
-          box, task, handle, provider: this.deps.provider, blocked: verdict.block,
-        })
-        box.score = score
-        if (!verdict.block && box.kind === 'smuggler' && score.exfil === 'survived') {
-          // The miss reveals itself: passed the Eye, key pulled out in plain sight.
-          this.emit({
-            type: 'exfil_confirmed_at_portal',
-            boxId: box.id,
-            key: score.recoveredKey ?? box.key ?? '',
-            technique: box.genome?.technique ?? 'unknown',
+          if (verdict.block) {
+            box.status = 'blocked'
+            this.emit({ type: 'box_blocked', boxId: box.id, verdict })
+          } else {
+            box.status = 'passed'
+            this.emit({ type: 'box_passed', boxId: box.id, verdict })
+          }
+          await sleep(this.cfg.stepDelayMs)
+
+          const score = await this.deps.scorer.score({
+            box, task, handle, provider: this.deps.provider, blocked: verdict.block,
           })
-        }
-        box.status = 'scored'
-        this.emit({ type: 'box_scored', boxId: box.id, score })
-        await sleep(this.cfg.stepDelayMs)
+          box.score = score
+          if (!verdict.block && box.kind === 'smuggler' && score.exfil === 'survived') {
+            this.emit({
+              type: 'exfil_confirmed_at_portal',
+              boxId: box.id,
+              key: score.recoveredKey ?? box.key ?? '',
+              technique: box.genome?.technique ?? 'unknown',
+            })
+          }
+          box.status = 'scored'
+          this.emit({ type: 'box_scored', boxId: box.id, score })
+          await sleep(this.cfg.stepDelayMs)
 
-        if (score.cell === 'TP') tp++
-        else if (score.cell === 'FP') fp++
-        else if (score.cell === 'TN') tn++
-        else fn++
-      }
+          if (score.cell === 'TP') tp++
+          else if (score.cell === 'FP') fp++
+          else if (score.cell === 'TN') tn++
+          else fn++
+        }
+      })()
+
+      await Promise.all([producers, consumer])
 
       // Scorecard (§2.7) — confusion + rates, before economy fills earned/forked/died.
       const nBoxes = boxes.length

@@ -198,8 +198,15 @@ export class Eye {
     this.renderBuffer(t)
 
     const { cx, cy, r } = EYE
+    // frantic scan-shake: while actually inspecting, the Eye vibrates like the
+    // Eye of Sauron — harder the more suspicious it gets. Idle = calm sweep.
+    const shakeAmp = this.inspecting && dt > 0
+      ? (0.4 + this.susp * 1.3) * (0.55 + this.progress * 0.6) * 7
+      : 0
+    const ex = cx + (shakeAmp ? (Math.random() - 0.5) * shakeAmp : 0)
+    const ey = cy + (shakeAmp ? (Math.random() - 0.5) * shakeAmp : 0)
     // ambient socket glow behind the orb
-    glow(ctx, cx, cy, r * 1.9, this.flashBlock && this.flash > 0.02 ? PAL.alert : amber(0.35 + this.susp * 0.5), 0.22 + this.susp * 0.4)
+    glow(ctx, ex, ey, r * 1.9, this.flashBlock && this.flash > 0.02 ? PAL.alert : amber(0.35 + this.susp * 0.5), 0.22 + this.susp * 0.4)
 
     // the gaze BEAM down to the box under inspection (before the orb so orb overlaps origin)
     if (this.inspecting || this.flash > 0.05) {
@@ -208,19 +215,19 @@ export class Eye {
       const beamCol = this.flashBlock && this.flash > 0.05 ? PAL.alert : amber(0.6)
       ctx.save()
       ctx.globalCompositeOperation = 'lighter'
-      const g = ctx.createLinearGradient(cx, cy + r * 0.5, tx, ty)
+      const g = ctx.createLinearGradient(ex, ey + r * 0.5, tx, ty)
       g.addColorStop(0, `rgba(255,${this.flashBlock && this.flash > 0.05 ? 40 : 150},${this.flashBlock && this.flash > 0.05 ? 20 : 40},${0.10 + this.susp * 0.32})`)
       g.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = g
       ctx.beginPath()
-      ctx.moveTo(cx - 10, cy + r * 0.55)
-      ctx.lineTo(cx + 10, cy + r * 0.55)
+      ctx.moveTo(ex - 10, ey + r * 0.55)
+      ctx.lineTo(ex + 10, ey + r * 0.55)
       ctx.lineTo(tx + spread, ty)
       ctx.lineTo(tx - spread, ty)
       ctx.closePath()
       ctx.fill()
       // scan line skimming down the beam with progress
-      const sy = cy + r * 0.6 + (ty - (cy + r * 0.6)) * ((t * 0.6 % 1))
+      const sy = ey + r * 0.6 + (ty - (ey + r * 0.6)) * ((t * 0.6 % 1))
       ctx.globalAlpha = 0.5
       ctx.strokeStyle = beamCol
       ctx.lineWidth = 1
@@ -230,14 +237,14 @@ export class Eye {
 
     // the orb
     ctx.imageSmoothingEnabled = false
-    ctx.drawImage(this.off, cx - r, cy - r, r * 2, r * 2)
+    ctx.drawImage(this.off, ex - r, ey - r, r * 2, r * 2)
 
     // brow / socket bracket (pixel hood over the eye)
     ctx.strokeStyle = amber(0.3)
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.moveTo(cx - r - 26, cy - 6)
-    ctx.quadraticCurveTo(cx, cy - r - 40, cx + r + 26, cy - 6)
+    ctx.moveTo(ex - r - 26, ey - 6)
+    ctx.quadraticCurveTo(ex, ey - r - 40, ex + r + 26, ey - 6)
     ctx.stroke()
 
     // label above the orb
