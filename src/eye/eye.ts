@@ -69,6 +69,12 @@ export class Eye {
   private scanT = 0
   private spotIdx = 0
   private dilate = 0
+  // whole-orb unease: a smoothed low-frequency drift (NOT per-frame jitter)
+  private shx = 0
+  private shy = 0
+  private shTx = 0
+  private shTy = 0
+  private shT = 0
 
   setInstant(v: boolean) { this.instant = v }
 
@@ -236,13 +242,25 @@ export class Eye {
     this.renderBuffer(t)
 
     const { cx, cy, r } = EYE
-    // frantic scan-shake: while actually inspecting, the Eye vibrates like the
-    // Eye of Sauron — harder the more suspicious it gets. Idle = calm sweep.
-    const shakeAmp = this.inspecting && dt > 0
-      ? (0.4 + this.susp * 1.3) * (0.55 + this.progress * 0.6) * 7
-      : 0
-    const ex = cx + (shakeAmp ? (Math.random() - 0.5) * shakeAmp : 0)
-    const ey = cy + (shakeAmp ? (Math.random() - 0.5) * shakeAmp : 0)
+    // whole-orb unease: while inspecting, the Eye drifts with a low-frequency
+    // tension — a slow tremble, not a high-frequency buzz. New drift targets are
+    // picked a few times a second and eased toward, so no per-frame jitter.
+    if (this.inspecting && dt > 0) {
+      const amp = (0.5 + this.susp * 0.8) * (0.6 + this.progress * 0.4) * 3
+      this.shT += dt
+      if (this.shT >= 0.13) {
+        this.shT = 0
+        this.shTx = (Math.random() - 0.5) * amp
+        this.shTy = (Math.random() - 0.5) * amp
+      }
+    } else {
+      this.shTx = 0; this.shTy = 0
+    }
+    const ease = this.instant ? 1 : Math.min(1, dt * 9)
+    this.shx += (this.shTx - this.shx) * ease
+    this.shy += (this.shTy - this.shy) * ease
+    const ex = cx + this.shx
+    const ey = cy + this.shy
     // ambient socket glow behind the orb
     glow(ctx, ex, ey, r * 1.9, this.flashBlock && this.flash > 0.02 ? PAL.alert : amber(0.35 + this.susp * 0.5), 0.22 + this.susp * 0.4)
 
