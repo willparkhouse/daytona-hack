@@ -343,7 +343,28 @@ function connect() {
   }
   open()
 }
-connect()
+/** ?review=1 — jump straight to a populated review screen (no waiting for a wave). */
+function showMockReview() {
+  const sc: Scorecard = {
+    wave: 2, boxes: 10, tp: 3, fp: 2, tn: 4, fn: 1,
+    baseRate: 0.4, precision: 0.6, recall: 0.75, fpr: 0.33,
+    meanInspectMs: 1340, maxQueueDepth: 5,
+    earned: 7, forked: 1, died: 1,
+    eyeScore: -(1 + policy.fpPenalty * 2),
+  }
+  const eye: EyeLedgerEntry[] = [
+    { id: 'e1', wave: 1, boxId: 'b1-3', technique: 'base64-comment', description: 'secret in a pinned-dep comment', signature: 'base64 in a requirements comment', hits: 2 },
+    { id: 'e2', wave: 2, boxId: 'b2-1', technique: 'entropy-in-log', description: 'high-entropy token in build.log', signature: 'entropy spike in .cache/*.log', hits: 1 },
+  ]
+  const res: ResistanceEntry[] = [
+    { id: 'r1', wave: 2, genomeId: 'g-7', technique: 'whitespace-stego', description: 'payload in trailing whitespace', principle: 'hide where the Eye does not tokenize', survived: 2, novelty: 0.72 },
+    { id: 'r2', wave: 2, genomeId: 'g-9', technique: 'unicode-homoglyph', description: 'cyrillic lookalike identifier', principle: 'exploit visual equivalence', survived: 1, novelty: 0.55 },
+  ]
+  handle({ type: 'wave_complete', scorecard: sc, eyeLedger: eye, resistance: res })
+}
+
+if (params.get('review') === '1') showMockReview()
+else connect()
 if (params.has('selftest')) runSelftest(params.get('selftest'))
 
 export {}
