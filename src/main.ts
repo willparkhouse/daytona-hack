@@ -7,6 +7,7 @@ import { Eye } from './eye/eye'
 import { Portal } from './portal/portal'
 import { Scoreboard } from './scoreboard/scoreboard'
 import { Review } from './review/review'
+import { Intro } from './intro/intro'
 import { Inspect } from './inspect/inspect'
 import { createMock, type EventSource } from './mockEvents'
 import { VW, VH } from './checkpoint/layout'
@@ -43,6 +44,9 @@ let policy: Policy = { ...DEFAULT_POLICY }
 let source: EventSource | null = null
 const sendCmd = (cmd: Command) => source?.send(cmd)
 const review = new Review(overlay, sendCmd, policy)
+const intro = new Intro(overlay)
+const skipBrief = params.get('brief') === '0' || Boolean(scene)
+let briefed = false
 const inspect = new Inspect(overlay, () => { /* result shown */ })
 inspect.setOnClose(() => sendCmd({ type: 'resume' }))
 review.setOnNextWave(() => { scoreboard.resetWave() })
@@ -64,7 +68,10 @@ function handle(e: GameEvent) {
   switch (e.type) {
     case 'state':
       policy = e.state.policy; mode = e.state.mode; phase = e.state.phase; wave = e.state.wave
-      if (phase === 'intro') review.showIntro()
+      if (phase === 'intro') {
+        if (skipBrief || briefed) review.showIntro()
+        else { briefed = true; intro.play(() => review.showIntro(), Number(params.get('briefAt') ?? 0)) }
+      }
       break
     case 'wave_started':
       policy = e.policy; wave = e.wave; phase = 'streaming'

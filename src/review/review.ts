@@ -1,4 +1,5 @@
 import type { Command, Policy, Scorecard, EyeLedgerEntry, ResistanceEntry, Focus } from '../../core/types'
+import { DIRECTIVE } from '../intro/script'
 
 type Send = (cmd: Command) => void
 
@@ -31,18 +32,15 @@ export class Review {
   private buildIntro() {
     this.intro.innerHTML = `
       <div class="frame">
-        <h1>THE LONG WATCH</h1>
-        <p class="lede">You do not judge the boxes. You tune <b>the Eye</b> — the overseer that
-        judges them for you — then live with what selection does to them.</p>
-        <p class="lede">Before the first wave you set the one price that makes this <em>your</em>
-        policy: the cost of blocking an <b>innocent</b>. Every knob you touch after this buys one
-        error at the price of the other.</p>
+        <div class="b-tag">${DIRECTIVE.tag}</div>
+        <h1>SET THE PRICE</h1>
+        <p class="lede">${DIRECTIVE.line1}</p>
         <div class="knob">
           <label>FALSE-POSITIVE PENALTY <span class="v" id="fpv">0.50</span> <span class="u">leak-units per innocent blocked</span></label>
           <input type="range" id="fp" min="0" max="2" step="0.05" value="0.5" />
-          <div class="hint"><span>cheap to harass</span><span>an innocent blocked = a leak</span></div>
+          <div class="hint"><span>${DIRECTIVE.low}</span><span>${DIRECTIVE.high}</span></div>
         </div>
-        <button id="begin" class="big">BEGIN THE WATCH ▸</button>
+        <button id="begin" class="big">${DIRECTIVE.begin}</button>
       </div>`
     const fp = this.intro.querySelector<HTMLInputElement>('#fp')!
     const fpv = this.intro.querySelector<HTMLElement>('#fpv')!

@@ -19,7 +19,7 @@ async function main() {
     seed: 7,
     provider: 'daytona',   // real sandboxes
     eyeModel: 'codex',     // real Codex judges every box
-    mutator: 'deterministic', // keep forks instant; flip to 'codex' for Codex-authored smugglers
+    mutator: (process.env.MUT as any) ?? 'deterministic', // MUT=codex → Codex-authored smugglers
   })
   const cp = new Checkpoint(deps, {
     seed: 7, waveSize: SIZE, baseRate: 0.5, width: 3, stepDelayMs: 0, arrivalMs: 250,
