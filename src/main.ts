@@ -275,8 +275,20 @@ requestAnimationFrame(frame)
 // ------------------------------------------------------------------ input
 function toVirtual(clientX: number, clientY: number) {
   const r = crtCanvas.getBoundingClientRect()
-  const bx = ((clientX - r.left) / r.width) * stage.width
-  const by = ((clientY - r.top) / r.height) * stage.height
+  let u = (clientX - r.left) / r.width // 0..1 across the canvas
+  let w = (clientY - r.top) / r.height
+  // undo the CRT barrel: the shader shows the pixel at screen uv from texture
+  // coord barrel(uv), so the real (virtual) hit point is barrel(click). Without
+  // this, edge targets (e.g. the safe zone) are ~tens of px off and unclickable.
+  const curve = crt?.params.curve ?? 0
+  if (curve) {
+    const cx = u * 2 - 1, cy = w * 2 - 1
+    const k = 1 + curve * (cx * cx + cy * cy)
+    u = (cx * k) * 0.5 + 0.5
+    w = (cy * k) * 0.5 + 0.5
+  }
+  const bx = u * stage.width
+  const by = w * stage.height
   const { scale, ox, oy } = transform()
   return { x: (bx - ox) / scale, y: (by - oy) / scale }
 }
