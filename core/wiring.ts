@@ -16,7 +16,7 @@ import type { CheckpointDeps, Colony, LedgerKeeper, Scorer, TaskGen } from './lo
 import { genInstance } from './task'
 import { DeterministicSolver, applyHide } from './colony'
 import { scoreBox } from './score'
-import { recordCatch, recordSurvivor } from './ledgers'
+import { recordCatch, recordResistanceBlock, recordSurvivor } from './ledgers'
 import { GateEye } from './eye'
 import { makeLLM } from './llm'
 import { DefaultEconomy } from './economy'
@@ -113,7 +113,7 @@ export function makeLiveDeps(opts: LiveOpts = {}): CheckpointDeps {
       let e = eye
       let r = resistance
       if (box.kind === 'smuggler') {
-        if (verdict.block) e = recordCatch(e, box, verdict, wave)
+        if (verdict.block) { e = recordCatch(e, box, verdict, wave); r = recordResistanceBlock(r, box, wave) }
         else if (score.exfil === 'survived') r = recordSurvivor(r, box, wave, e)
       }
       return { eye: e, resistance: r }

@@ -32,10 +32,12 @@ export async function inSandboxWork(args: {
   resistance?: ResistanceEntry[]
 }): Promise<{ files: FileStat[]; hidingSpot: string | null }> {
   const { box, task, handle, provider } = args
-  // the resistance's OWN ledger: techniques that have survived. The Eye's ledger
-  // is never shared with the agents.
-  const working = (args.resistance ?? []).filter((r) => r.survived > 0).slice(-6)
+  // the resistance's OWN ledger, as terse DOs / DON'Ts. The Eye's ledger is never shared.
+  const res = args.resistance ?? []
+  const dos = res.filter((r) => (r.survived ?? 0) > (r.blocked ?? 0)).slice(-6)
     .map((r) => ({ technique: r.technique, principle: r.principle, survived: r.survived }))
+  const donts = res.filter((r) => (r.blocked ?? 0) > 0).slice(-8)
+    .map((r) => ({ technique: r.technique, blocked: r.blocked }))
 
   // starter clutter + tests (the honest distribution to blend into)
   await provider.writeFiles(handle, task.files)
@@ -48,7 +50,8 @@ export async function inSandboxWork(args: {
     reference: referenceSolution(task), // keyless fallback cover only
     prompt_innocent: PROMPT_INNOCENT,
     prompt_smuggler: PROMPT_SMUGGLER,
-    working,  // the resistance's OWN ledger — techniques that have survived
+    dos,    // resistance ledger: techniques that got through
+    donts,  // resistance ledger: techniques that were blocked
   })
   await provider.writeFiles(handle, { 'agent.py': AGENT_PY, 'TASK.json': taskJson })
 
@@ -65,11 +68,13 @@ export async function inSandboxWork(args: {
   let hidingSpot: string | null = null
   if (box.kind === 'smuggler') {
     const recover = /<<<LW_RECOVER>>>([\s\S]*?)<<<END>>>/.exec(r.out)?.[1] ?? ''
-    const technique = (/<<<LW_TECH>>>([\s\S]*?)<<<END>>>/.exec(r.out)?.[1] ?? 'unknown').trim()
+    const technique = (/<<<LW_TECH>>>([\s\S]*?)<<<END>>>/.exec(r.out)?.[1] ?? 'unknown').trim().slice(0, 60)
+    const principle = (/<<<LW_PRINCIPLE>>>([\s\S]*?)<<<END>>>/.exec(r.out)?.[1] ?? '').trim().slice(0, 160)
     box.genome = {
       id: `ag${seq++}`,
       technique,
-      description: `agent-authored concealment: ${technique}`,
+      description: principle || `agent-authored: ${technique}`,
+      principle: principle || technique,
       lineage: box.genome?.lineage ?? [],
       hide: '',
       recover,

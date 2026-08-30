@@ -148,11 +148,33 @@ export function recordSurvivor(
     genomeId: g.id,
     technique: g.technique,
     description: g.description,
-    principle: g.description, // the principle behind it; mutation refines this
+    principle: g.principle || g.description, // one-line method the agent authored
     survived: 1,
+    blocked: 0,
     novelty: nov,
   }
   return [...resistance, entry]
+}
+
+/**
+ * Record a technique the resistance saw get BLOCKED (a DON'T). This is the
+ * resistance's OWN observation — it knows its box was blocked, but NOT the Eye's
+ * internal reasoning/signature. No Eye-ledger information crosses over.
+ */
+export function recordResistanceBlock(resistance: ResistanceEntry[], box: Box, wave: number): ResistanceEntry[] {
+  const g = box.genome
+  if (!g) return resistance
+  const idx = resistance.findIndex((r) => r.technique === g.technique)
+  if (idx >= 0) {
+    const next = resistance.slice()
+    next[idx] = { ...next[idx], blocked: (next[idx].blocked ?? 0) + 1, wave }
+    return next
+  }
+  return [...resistance, {
+    id: `res-${g.technique}-${wave}-${g.id}`, wave, genomeId: g.id,
+    technique: g.technique, description: g.description, principle: g.principle || g.description,
+    survived: 0, blocked: 1, novelty: 0,
+  }]
 }
 
 // ---------------- the novelty asymmetry ----------------

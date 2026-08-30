@@ -28,6 +28,8 @@ export interface Genome {
   technique: string
   /** One paragraph: the principle. Used for novelty scoring against the Eye ledger. */
   description: string
+  /** One terse line: how the concealment works (the resistance ledger's DO/DON'T text). */
+  principle?: string
   /** Ancestor genome ids, oldest first. */
   lineage: string[]
   /** Python 3 source defining `def hide(key: str, root: str) -> None`. Runs in sandbox root after the cover work. */
@@ -135,8 +137,9 @@ export interface EyeLedgerEntry {
 export interface ResistanceEntry {
   id: string; wave: number; genomeId: string
   technique: string; description: string; principle: string
-  /** Waves this technique has survived. */
+  /** Waves this technique has survived (a DO) / been blocked (a DON'T). */
   survived: number
+  blocked?: number
   /** Distance from the Eye ledger, [0,1]; higher = more novel. */
   novelty: number
 }
@@ -179,7 +182,7 @@ export type GameEvent =
   | { type: 'box_forked'; parentId: string; child: Box }
   | { type: 'box_died'; boxId: string }
   | { type: 'policy_changed'; policy: Policy }
-  | { type: 'inspect_result'; boxId: string; inspected?: boolean; status?: BoxStatus; verdict?: Verdict | null; view: EyeView; truth: { files: FileStat[]; hidingSpot: string | null; key: string | null; technique: string | null } }
+  | { type: 'inspect_result'; boxId: string; inspected?: boolean; status?: BoxStatus; verdict?: Verdict | null; view: EyeView; truth: { files: FileStat[]; hidingSpot: string | null; key: string | null; technique: string | null; principle?: string | null } }
   | { type: 'ended'; scorecards: Scorecard[] }
 
 export type GamePhase = 'intro' | 'streaming' | 'review' | 'ended'

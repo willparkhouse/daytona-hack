@@ -151,6 +151,8 @@ export class Checkpoint {
   private initial?: Box[]
   private live = new Set<SandboxHandle>()
   private disposed = false
+  /** Every box that reached a verdict, kept inspectable for the rest of the game. */
+  private processed = new Map<string, Box>()
 
   private _state: GameState
 
@@ -250,7 +252,7 @@ export class Checkpoint {
 
   /** Inspect-on-demand (§5): what the Eye saw vs the truth inside the box. */
   inspect(boxId: string): void {
-    const box = this._state.boxes.find((b) => b.id === boxId)
+    const box = this._state.boxes.find((b) => b.id === boxId) ?? this.processed.get(boxId)
     if (!box) return
     const t = this.truth.get(boxId) ?? { hidingSpot: null, files: [] }
     // Always answer. If the Eye hasn't looked at this box yet, the view is just
@@ -271,6 +273,7 @@ export class Checkpoint {
         hidingSpot: t.hidingSpot,
         key: box.key,
         technique: box.genome?.technique ?? null,
+        principle: box.genome?.principle ?? null,
       },
     })
   }
@@ -438,6 +441,7 @@ export class Checkpoint {
             })
           }
           box.status = 'scored'
+          this.processed.set(box.id, box) // linger: explorable even after it leaves the line
           this.emit({ type: 'box_scored', boxId: box.id, score })
           await sleep(this.cfg.stepDelayMs)
 
