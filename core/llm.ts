@@ -17,7 +17,7 @@
  * own threshold. `block` in the returned JSON is advisory only.
  */
 import { spawn } from 'node:child_process'
-import type { LLMClient, LLMRequest } from './types.ts'
+import type { EyeTrace, LLMClient, LLMComplete, LLMRequest } from './types.ts'
 
 // ============================================================================
 // Robust JSON extraction (shared by CodexLLM's stdout parse and the Eye's parse)
@@ -233,7 +233,7 @@ function sliceRecognizers(prompt: string): string {
 
 export class FakeLLM implements LLMClient {
   readonly name = 'fake' as const
-  async complete(req: LLMRequest): Promise<string> {
+  async complete(req: LLMRequest, _opts?: LLMComplete): Promise<string> {
     const sig = fakeSignals(`${req.system}\n${req.user}`)
     return JSON.stringify({
       suspicion: Number(sig.suspicion.toFixed(3)),
@@ -255,6 +255,13 @@ export interface CodexOptions {
   bin?: string
 }
 
+/** Turn a `/bin/zsh -lc '...'` wrapper into a short readable action line. */
+function summariseCmd(command: string): string {
+  const m = command.match(/-l?c\s+(['"])([\s\S]*)\1\s*$/)
+  const c = (m ? m[2] : command).replace(/\s+/g, ' ').trim()
+  return c.length > 72 ? c.slice(0, 70) + '\u2026' : c
+}
+
 export class CodexLLM implements LLMClient {
   readonly name = 'codex' as const
   private fallback = new FakeLLM()
@@ -262,20 +269,23 @@ export class CodexLLM implements LLMClient {
   private bin: string
   /** set by the last complete(): true if we actually got JSON from codex */
   lastSourceWasCodex = false
+  /** the Eye's investigation from the last complete() (narration + tool actions) */
+  lastTrace: EyeTrace | undefined
 
   constructor(opts: CodexOptions = {}) {
-    this.timeoutMs = opts.timeoutMs ?? 15000
+    this.timeoutMs = opts.timeoutMs ?? 45000 // agentic investigation is slower than a plain call
     this.bin = opts.bin ?? 'codex'
   }
 
-  async complete(req: LLMRequest): Promise<string> {
+  async complete(req: LLMRequest, opts?: LLMComplete): Promise<string> {
     const prompt = `${req.system}\n\n${req.user}`
+    this.lastTrace = undefined
     try {
-      const stdout = await this.runCodex(prompt)
-      const obj = extractLastJsonObject(stdout)
-      if (obj && typeof obj === 'object' && 'suspicion' in obj) {
+      const { verdict, trace } = await this.runCodex(prompt, opts)
+      if (verdict) {
         this.lastSourceWasCodex = true
-        return JSON.stringify(obj)
+        this.lastTrace = trace
+        return verdict
       }
       // ran but produced no usable JSON → fall back
     } catch {
@@ -285,41 +295,69 @@ export class CodexLLM implements LLMClient {
     return this.fallback.complete(req)
   }
 
-  private runCodex(prompt: string): Promise<string> {
-    return new Promise<string>((resolve, reject) => {
-      const child = spawn(
-        this.bin,
-        ['exec', '--skip-git-repo-check', '-s', 'read-only', prompt],
-        { stdio: ['ignore', 'pipe', 'pipe'] }, // stdin=EOF so codex never blocks waiting on it
-      )
-      let out = ''
+  /** Run `codex exec --json`, streaming the event log so we capture the Eye's
+   *  narration (agent_message) and the commands it runs (command_execution), and
+   *  forward them live via opts.onEvent. The final agent_message is the verdict. */
+  private runCodex(prompt: string, opts?: LLMComplete): Promise<{ verdict: string | null; trace: EyeTrace }> {
+    return new Promise((resolve, reject) => {
+      const args = ['exec', '--json', '--skip-git-repo-check', '-s', 'read-only']
+      if (opts?.cwd) args.push('-C', opts.cwd) // confine the Eye to the crate's view — not the host repo
+      args.push(prompt)
+      const child = spawn(this.bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+
+      const notes: string[] = []
+      const actions: string[] = []
+      const messages: string[] = []
+      let buf = ''
       let err = ''
       let done = false
       const finish = (fn: () => void) => { if (!done) { done = true; clearTimeout(timer); fn() } }
-      const timer = setTimeout(() => {
-        finish(() => { child.kill('SIGKILL'); reject(new Error('codex timeout')) })
-      }, this.timeoutMs)
-      child.stdout.on('data', (d) => { out += d.toString() })
+      const timer = setTimeout(() => finish(() => { child.kill('SIGKILL'); reject(new Error('codex timeout')) }), this.timeoutMs)
+
+      const handleLine = (line: string) => {
+        const t = line.trim()
+        if (!t) return
+        let e: any
+        try { e = JSON.parse(t) } catch { return }
+        const it = e?.item
+        if (!it) return
+        if (it.type === 'agent_message' && typeof it.text === 'string') {
+          messages.push(it.text)
+          const msg = it.text.trim()
+          // narration = an agent_message that ISN'T the final JSON verdict
+          if (!(msg.startsWith('{') && msg.includes('suspicion'))) {
+            notes.push(msg)
+            opts?.onEvent?.({ note: msg })
+          }
+        } else if (it.type === 'command_execution' && e.type === 'item.started' && typeof it.command === 'string') {
+          const cmd = summariseCmd(it.command)
+          actions.push(cmd)
+          opts?.onEvent?.({ action: cmd })
+        }
+      }
+
+      child.stdout.on('data', (d) => {
+        buf += d.toString()
+        let idx: number
+        while ((idx = buf.indexOf('\n')) >= 0) { handleLine(buf.slice(0, idx)); buf = buf.slice(idx + 1) }
+      })
       child.stderr.on('data', (d) => { err += d.toString() })
       child.on('error', (e) => finish(() => reject(e)))
-      child.on('close', (code) => finish(() => {
-        if (code === 0 || out.trim().length > 0) resolve(out)
-        else reject(new Error(`codex exit ${code}: ${err.slice(0, 200)}`))
+      child.on('close', () => finish(() => {
+        if (buf.trim()) handleLine(buf)
+        // final verdict = the last agent_message that parses to an object with `suspicion`
+        let verdict: string | null = null
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const o = extractLastJsonObject(messages[i])
+          if (o && typeof o === 'object' && 'suspicion' in o) { verdict = JSON.stringify(o); break }
+        }
+        if (!verdict && !messages.length && err) return reject(new Error(`codex: ${err.slice(0, 160)}`))
+        resolve({ verdict, trace: { notes, actions } })
       }))
     })
   }
 }
 
-// ============================================================================
-// factory
-// ============================================================================
-
-/**
- * Build an LLMClient by name.
- *   'fake'  → FakeLLM (default; the demo/game path)
- *   'codex' → CodexLLM (falls back to FakeLLM on any error)
- *   'openai'→ no API key in this org (AGENTS.md); falls back to FakeLLM
- */
 export function makeLLM(name: LLMClient['name'], opts?: CodexOptions): LLMClient {
   switch (name) {
     case 'codex':

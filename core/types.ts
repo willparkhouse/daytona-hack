@@ -99,6 +99,9 @@ export const DEFAULT_POLICY: Policy = { threshold: 0.6, attention: 4000, focus: 
 export interface EyeViewFile { path: string; bytes: number; excerpt?: string; entropy?: number }
 /** What the Eye actually saw — partial by design. Shown verbatim in the inspect panel. */
 export interface EyeView { listing: FileStat[]; files: EyeViewFile[]; bytesRead: number; budget: number; focus: Focus }
+/** The Eye's investigation, surfaced from the model: what it said it was doing
+ *  (`notes`) and the commands it actually ran to check the crate (`actions`). */
+export interface EyeTrace { notes: string[]; actions: string[] }
 export interface Verdict {
   suspicion: number
   block: boolean
@@ -107,6 +110,8 @@ export interface Verdict {
   view: EyeView
   latencyMs: number
   source: 'codex' | 'openai' | 'fake' | 'replay'
+  /** The Eye's live investigation trace (narration + tool actions), when available. */
+  trace?: EyeTrace
 }
 export interface Eye {
   audit(
@@ -152,7 +157,10 @@ export interface Scorecard {
 
 // ---------------- LLM seam ----------------
 export interface LLMRequest { system: string; user: string; json?: boolean; maxTokens?: number }
-export interface LLMClient { readonly name: 'codex' | 'openai' | 'fake'; complete(req: LLMRequest): Promise<string> }
+/** Optional per-call controls: a working directory the model may investigate, and a
+ *  streaming sink for its narration / tool actions as they happen. */
+export interface LLMComplete { cwd?: string; onEvent?: (ev: { note?: string; action?: string }) => void }
+export interface LLMClient { readonly name: 'codex' | 'openai' | 'fake'; complete(req: LLMRequest, opts?: LLMComplete): Promise<string> }
 
 // ---------------- events (server → UI) ----------------
 export type GameEvent =
