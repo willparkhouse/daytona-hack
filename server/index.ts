@@ -73,31 +73,34 @@ async function runLiveOrSim() {
     mode: (MODE === 'live' ? 'live' : 'sim') as 'live' | 'sim',
   }
 
-  // Single-player: a fresh page-load starts a fresh run. Only the current game
-  // broadcasts (older instances are ignored), so a reload can't leave you
-  // stranded in a finished game's review screen.
-  let active: Checkpoint | null = null
-  const newGame = (): Checkpoint => {
-    const cp = new Checkpoint(build(), cfg)
-    cp.subscribe((e: GameEvent) => { if (cp === active) broadcast(e) })
-    active = cp
-    return cp
+  // Clear any sandboxes orphaned by a previous run before we start.
+  if (MODE === 'live' && LIVE.provider === 'daytona') {
+    try { const { Swarm } = await import('./daytona'); const n = await Swarm.purge(); if (n) console.log(`[live] purged ${n} orphaned sandboxes on startup`) } catch { /* noop */ }
   }
 
+  // ONE GAME PER UI CONNECTION — the game's lifecycle is tied to the socket.
+  // When the page closes or reloads, that game is disposed (its sandboxes
+  // destroyed → no orphans), and separate connections never interfere.
+  const games = new Set<Checkpoint>()
   wss.on('connection', (ws) => {
-    if (!active || active.state.phase !== 'intro') newGame()
-    send(ws, active!.snapshot())
+    const cp = new Checkpoint(build(), cfg)
+    games.add(cp)
+    const unsub = cp.subscribe((e) => send(ws, e))
+    send(ws, cp.snapshot())
     ws.on('message', (raw) => {
       let cmd: Command
       try { cmd = JSON.parse(String(raw)) } catch { return }
       console.log(`[cmd] ${cmd.type}`)
-      // 'start' always begins from a clean game (guards against a stale mid-run).
-      if (cmd.type === 'start' && active && active.state.phase !== 'intro') newGame()
-      active!.handle(cmd).catch((e) => console.error('[cmd] error', e))
+      cp.handle(cmd).catch((e) => console.error('[cmd] error', e))
     })
+    ws.on('close', () => { unsub(); games.delete(cp); cp.dispose().catch(() => {}) })
   })
 
-  process.on('SIGINT', () => { console.log('\n[watch] shutting down'); process.exit(0) })
+  process.on('SIGINT', async () => {
+    console.log('\n[watch] shutting down — disposing games')
+    await Promise.allSettled([...games].map((g) => g.dispose()))
+    process.exit(0)
+  })
 }
 
 // ------------------------------------------------------------------- seed ----

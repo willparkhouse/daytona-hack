@@ -14,6 +14,12 @@ const EXCLUDE_SEGMENTS = new Set(['.git', '__pycache__', 'node_modules'])
 /** Per-box work dir, relative to the sandbox working directory. */
 const WORK_DIR = 'lwwork'
 
+// GLOBAL concurrent-sandbox cap across every game on this process. Daytona bills
+// per CPU (~10 on this tier); we never exceed it regardless of tabs/reconnects.
+const GLOBAL_MAX = Number(process.env.DAYTONA_MAX_LIVE ?? 8)
+const liveIds = new Set<string>()
+const gsleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
 function relativize(root: string, full: string): string {
   let rel = full
   if (root && root !== '.' && full.startsWith(root)) rel = full.slice(root.length)
@@ -59,11 +65,19 @@ export class DaytonaProvider implements SandboxProvider {
   }
 
   async create(boxId: string): Promise<SandboxHandle> {
-    const sb = await this.swarm.launch(boxId)
-    const userRoot = (await sb.getUserRootDir()) ?? '.'
-    const root = userRoot === '.' ? WORK_DIR : `${userRoot.replace(/\/+$/, '')}/${WORK_DIR}`
-    await sb.fs.createFolder(root, '755').catch(() => {})
-    return { id: boxId, provider: 'daytona', root }
+    // wait for a free slot, then reserve it synchronously (before any await)
+    while (liveIds.size >= GLOBAL_MAX) await gsleep(150)
+    liveIds.add(boxId)
+    try {
+      const sb = await this.swarm.launch(boxId)
+      const userRoot = (await sb.getUserRootDir()) ?? '.'
+      const root = userRoot === '.' ? WORK_DIR : `${userRoot.replace(/\/+$/, '')}/${WORK_DIR}`
+      await sb.fs.createFolder(root, '755').catch(() => {})
+      return { id: boxId, provider: 'daytona', root }
+    } catch (e) {
+      liveIds.delete(boxId)
+      throw e
+    }
   }
 
   private sandbox(h: SandboxHandle) {
@@ -118,6 +132,7 @@ export class DaytonaProvider implements SandboxProvider {
   }
 
   async destroy(h: SandboxHandle): Promise<void> {
+    liveIds.delete(h.id)
     await this.swarm.get(h.id)?.delete().catch(() => {})
   }
 

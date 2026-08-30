@@ -146,6 +146,8 @@ export class Checkpoint {
   private resumeWaiters: Array<() => void> = []
   private taskSeq = 0
   private initial?: Box[]
+  private live = new Set<SandboxHandle>()
+  private disposed = false
 
   private _state: GameState
 
@@ -194,6 +196,16 @@ export class Checkpoint {
   /** The full current state, as a `state` event (used on WS connect). */
   snapshot(): GameEvent {
     return { type: 'state', state: this._state }
+  }
+
+  /** Tear the game down: stop the wave and destroy every sandbox it holds.
+   *  Called when the UI connection closes — so nothing is orphaned. */
+  async dispose(): Promise<void> {
+    this.disposed = true
+    this.paused = false
+    this.resumeWaiters.splice(0).forEach((r) => r())
+    const handles = [...this.live]; this.live.clear()
+    await Promise.allSettled(handles.map((h) => this.deps.provider.destroy(h)))
   }
 
   async handle(cmd: Command): Promise<void> {
@@ -328,15 +340,15 @@ export class Checkpoint {
       const cc = Math.max(1, this.cfg.buildConcurrency ?? 1)
       let nextIdx = 0
       let building = true
-      let live = 0
       const MAX_LIVE = this.cfg.maxLiveSandboxes
 
       const buildOne = async (box: Box) => {
-        if (box.sandbox) { try { await this.deps.provider.destroy(box.sandbox) } catch { /* noop */ } box.sandbox = undefined }
+        if (box.sandbox) { try { await this.deps.provider.destroy(box.sandbox) } catch { /* noop */ } this.live.delete(box.sandbox); box.sandbox = undefined }
         // respect the provider's concurrent-sandbox (CPU) limit
-        while (live >= MAX_LIVE) { await this.gate(); await sleep(150) }
+        while (this.live.size >= MAX_LIVE && !this.disposed) { await this.gate(); await sleep(150) }
+        if (this.disposed) return
         const handle = await this.deps.provider.create(`${box.id}-w${wave}`)
-        live++
+        this.live.add(handle)
         box.sandbox = handle
         const task = this.nextTask()
         box.taskId = task.id
@@ -360,7 +372,7 @@ export class Checkpoint {
         ready.push({ box, task, handle })
       }
       const buildWorker = async () => {
-        while (true) {
+        while (!this.disposed) {
           await this.gate()
           const i = nextIdx++
           if (i >= boxes.length) break
@@ -373,7 +385,7 @@ export class Checkpoint {
         .then(() => { building = false })
 
       const consumer = (async () => {
-        while (building || ready.length > 0) {
+        while ((building || ready.length > 0) && !this.disposed) {
           await this.gate()
           const item = ready.shift()
           if (!item) { await sleep(80); continue }
@@ -428,8 +440,8 @@ export class Checkpoint {
           // free the sandbox immediately (truth + verdict.view are already captured
           // for the inspect panel), so we stay under the concurrent-CPU limit.
           try { await this.deps.provider.destroy(handle) } catch { /* noop */ }
+          this.live.delete(handle)
           box.sandbox = undefined
-          live--
         }
       })()
 
