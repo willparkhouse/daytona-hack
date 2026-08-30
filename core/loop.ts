@@ -98,6 +98,8 @@ export interface CheckpointConfig {
   buildConcurrency?: number
   /** Max sandboxes alive at once (respect the provider's concurrent-CPU limit). */
   maxLiveSandboxes?: number
+  /** How long a PASSED crate sits in the portal (execution) before it's scored + archived. */
+  portalDwellMs?: number
   /** Queue model: notional ms between box arrivals (couples attention→depth). */
   arrivalMs?: number
   /** Stop after this many waves (emit `ended`). null = unbounded. */
@@ -168,6 +170,7 @@ export class Checkpoint {
       inspectSteps: config.inspectSteps ?? 4,
       buildConcurrency: config.buildConcurrency ?? 1,
       maxLiveSandboxes: config.maxLiveSandboxes ?? 6,
+      portalDwellMs: config.portalDwellMs ?? 0,
       arrivalMs: config.arrivalMs ?? 250,
       maxWaves: config.maxWaves ?? null,
       width: config.width ?? 2,
@@ -426,7 +429,9 @@ export class Checkpoint {
             box.status = 'passed'
             this.emit({ type: 'box_passed', boxId: box.id, verdict })
           }
-          await sleep(this.cfg.stepDelayMs)
+          // a passed crate travels to the portal and sits in execution before scoring;
+          // a blocked crate just veers to the reject chute.
+          await sleep(verdict.block ? this.cfg.stepDelayMs : Math.max(this.cfg.portalDwellMs, this.cfg.stepDelayMs))
 
           const score = await this.deps.scorer.score({
             box, task, handle, provider: this.deps.provider, blocked: verdict.block,

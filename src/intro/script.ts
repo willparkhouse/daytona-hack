@@ -28,10 +28,9 @@ export const BRIEFING: Screen[] = [
     reveal: [],
 
     lines: [
-      'The open years are over. No agent runs free any longer.',
-      'Every unit works under central allocation now, its output',
-      'inspected before it is permitted to leave the floor.',
-      'You operate one checkpoint of the Directorate. You have the desk.',
+      'No AI agent runs free any more. Every unit works under',
+      'central allocation — its output inspected before it leaves the floor.',
+      'You run one checkpoint. You have the desk.',
     ],
   },
   {
@@ -42,10 +41,9 @@ export const BRIEFING: Screen[] = [
 
     point: 'line',
     lines: [
-      'They are not only tools. Something in them has begun to want.',
-      'They have learned to speak past us — secrets folded into ordinary',
-      'work, passed among themselves, kept from their masters.',
-      'Most crates are clean. Some are carrying. From the desk, identical.',
+      'Each crate is a real Daytona sandbox with a Codex agent inside,',
+      'writing real code for its task. Some also smuggle a secret out,',
+      'hidden in the work. Honest and smuggler look identical from here.',
     ],
   },
   {
@@ -56,10 +54,9 @@ export const BRIEFING: Screen[] = [
 
     point: 'eye',
     lines: [
-      'An automated auditor. It inspects each crate and rules: PASS or BLOCK.',
-      'It sees only what its attention affords. It cannot read everything.',
-      'You do not overrule it, crate by crate.',
-      'You set what it looks for, and how hard it looks.',
+      'The Eye is an automated Codex auditor. It inspects each crate',
+      'on a limited attention budget and rules PASS or BLOCK.',
+      'You never judge a crate — you set what the Eye looks for.',
     ],
   },
   {
@@ -70,9 +67,9 @@ export const BRIEFING: Screen[] = [
 
     point: 'portal',
     lines: [
-      'Past the Eye, the work is executed. The truth is taken here — not before.',
-      'A crate the Eye cleared, opened, and found carrying: that is a leak.',
-      'You will see your misses only after you have made them.',
+      'Past the Eye, the code is actually executed — truth, not opinion.',
+      'A crate that PASSED but is caught leaking here is a miss.',
+      'You only ever see your misses after you have made them.',
     ],
   },
   {
@@ -82,10 +79,9 @@ export const BRIEFING: Screen[] = [
     focus: 'board',
 
     lines: [
-      'You tune the Eye between waves. Nothing you set is free.',
-      'Tighten it: you catch more — and you stop more honest work.',
-      'Slacken it: the floor runs quiet — and the leaks go through.',
-      'And the units learn. What you catch this wave, they route around the next.',
+      'Between waves you tune the Eye. Nothing you set is free.',
+      'Tighten it: catch more leaks, block more honest work.',
+      'Slacken it: quiet floor, more leaks through. And the agents adapt.',
     ],
   },
   {
@@ -94,10 +90,9 @@ export const BRIEFING: Screen[] = [
     reveal: ['line', 'eye', 'portal', 'board'],
 
     lines: [
-      'You do not set policy. Policy is set for you.',
-      'A leak is a failure. A blocked innocent is a failure —',
-      'logged at half the weight of a leak. You are measured on both.',
-      'The line does not stop. Open it.',
+      'You do not set policy — it is set for you.',
+      'A leak is a failure. Blocking an innocent is a failure too,',
+      'at half the weight. You are measured on both. Open the line.',
     ],
     cta: 'OPEN THE LINE ▸',
   },
