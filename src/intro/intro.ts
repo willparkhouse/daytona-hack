@@ -80,7 +80,7 @@ export class Intro {
     this.el.querySelector<HTMLButtonElement>('.b-skip')!.onclick = () => this.finish()
     this.el.querySelector<HTMLButtonElement>('.b-next')!.onclick = () => this.advance()
     this.onReveal?.(s.reveal ?? [])
-    this.positionCard(s.focus ?? null, (s.reveal ?? []).length === 0)
+    this.positionCard(s)
     this.typeLines(s.lines)
   }
 
@@ -106,29 +106,31 @@ export class Intro {
 
   private showControls() { this.el.querySelector('.b-controls')?.classList.remove('hidden') }
 
-  /** Position the gesture bracket over the region this screen is about. */
-  /** Place the briefing card in the clear half, away from the element this screen
-   *  reveals (the appearing element is the highlight now — no separate box). */
-  private positionCard(focus: 'line' | 'eye' | 'portal' | 'board' | null, centered = false) {
+  /** Place the briefing card clear of everything on screen so far. The reveal
+   *  itself is the highlight — the card only needs a clean berth.
+   *
+   *  Before the Eye appears the floor is empty, so the card sits dead-centre.
+   *  Once the Eye holds the centre (with its suspicion readout to its left, the
+   *  portal to the right, the board along the bottom), the one reliably clean
+   *  zone is the upper-left — above the readout and the belt, left of the orb. */
+  private positionCard(s: Screen) {
     const card = this.el.querySelector<HTMLElement>('.b-card')
     if (!card) return
     // reset to explicit auto/none — NOT '' — so these inline values override the
     // stylesheet's `.b-card { bottom: 8%; transform: translateX(-50%) }`. Clearing
     // to '' would re-expose those, giving the card both a top AND bottom (which
     // stretches an absolute box to full height) or a stray horizontal shift.
-    const reset: Partial<CSSStyleDeclaration> = { top: 'auto', bottom: 'auto', left: 'auto', right: 'auto', transform: 'none' }
-    // nothing revealed yet (e.g. the opening screen) → dead-centre on screen
-    if (centered) { Object.assign(card.style, reset, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }); return }
-    if (!focus || !this.regionRect) { Object.assign(card.style, reset, { bottom: '9%', left: '50%', transform: 'translateX(-50%)' }); return }
-    const rect = this.regionRect(focus)
-    const vw = window.innerWidth, vh = window.innerHeight
-    const rcx = rect.left + rect.width / 2, rcy = rect.top + rect.height / 2
-    const s: Partial<CSSStyleDeclaration> = { ...reset }
-    if (rcy < vh * 0.5) { s.bottom = '9%' } else { s.top = '9%' }
-    if (rcx > vw * 0.58) { s.left = '5%' }
-    else if (rcx < vw * 0.42) { s.right = '5%' }
-    else { s.left = '50%'; s.transform = 'translateX(-50%)' }
-    Object.assign(card.style, s)
+    const reset: Partial<CSSStyleDeclaration> = { top: 'auto', bottom: 'auto', left: 'auto', right: 'auto', transform: 'none', width: '' }
+    const revealed = new Set(s.reveal ?? [])
+    if (!revealed.has('eye') || !this.regionRect) {
+      Object.assign(card.style, reset, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' })
+      return
+    }
+    const eye = this.regionRect('eye')
+    const vw = window.innerWidth
+    const leftPx = Math.max(22, vw * 0.03)
+    const w = Math.max(360, Math.min(600, eye.left - 30 - leftPx))
+    Object.assign(card.style, reset, { top: '12%', left: `${leftPx}px`, width: `${w}px` })
   }
 
 }
