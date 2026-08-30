@@ -69,6 +69,7 @@ export class Eye {
   private scanT = 0
   private spotIdx = 0
   private dilate = 0
+  private dilTarget = 0 // per-stage pupil level (random open/close), eased toward
   // whole-orb unease: a smoothed low-frequency drift (NOT per-frame jitter)
   private shx = 0
   private shy = 0
@@ -141,15 +142,19 @@ export class Eye {
         this.spotIdx = (this.spotIdx + 2 + (Math.random() * 2 | 0)) % SCAN_SPOTS.length
         this.tgtX = INSPECT_X + SCAN_SPOTS[this.spotIdx][0]
         this.tgtY = boxCY + SCAN_SPOTS[this.spotIdx][1]
-        this.dilate = 0.075 // opens as it jumps to a new region
+        // fresh, random pupil level for this region — sometimes wider, sometimes
+        // a harder squint; biased toward constriction as suspicion climbs
+        const bias = -this.susp * 0.07
+        this.dilTarget = Math.max(-0.11, Math.min(0.07, bias + (Math.random() - 0.5) * 0.12))
       }
     } else {
       this.tgtX = INSPECT_X; this.tgtY = boxCY
+      this.dilTarget = 0
     }
     const k = this.instant ? 1 : Math.min(1, dt * 9)
     this.gazeX += (this.tgtX - this.gazeX) * k
     this.gazeY += (this.tgtY - this.gazeY) * k
-    this.dilate += (0 - this.dilate) * Math.min(1, dt * 3.5) // focuses (contracts) as it settles
+    this.dilate += (this.dilTarget - this.dilate) * (this.instant ? 1 : Math.min(1, dt * 6)) // eases to this stage's level
     // pupil only subtly tracks the beam — a small fraction of the beam's travel
     this.gx = Math.max(-0.13, Math.min(0.13, (this.gazeX - INSPECT_X) / 220))
     this.gy = 0.15 + ((this.gazeY - boxCY) / CRATE) * 0.04
