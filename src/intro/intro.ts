@@ -80,7 +80,7 @@ export class Intro {
     this.el.querySelector<HTMLButtonElement>('.b-skip')!.onclick = () => this.finish()
     this.el.querySelector<HTMLButtonElement>('.b-next')!.onclick = () => this.advance()
     this.onReveal?.(s.reveal ?? [])
-    this.positionCard(s.focus ?? null)
+    this.positionCard(s.focus ?? null, (s.reveal ?? []).length === 0)
     this.typeLines(s.lines)
   }
 
@@ -109,10 +109,12 @@ export class Intro {
   /** Position the gesture bracket over the region this screen is about. */
   /** Place the briefing card in the clear half, away from the element this screen
    *  reveals (the appearing element is the highlight now — no separate box). */
-  private positionCard(focus: 'line' | 'eye' | 'portal' | 'board' | null) {
+  private positionCard(focus: 'line' | 'eye' | 'portal' | 'board' | null, centered = false) {
     const card = this.el.querySelector<HTMLElement>('.b-card')
     if (!card) return
     const reset: Partial<CSSStyleDeclaration> = { top: '', bottom: '', left: '', right: '', transform: '' }
+    // nothing revealed yet (e.g. the opening screen) → dead-centre on screen
+    if (centered) { Object.assign(card.style, reset, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }); return }
     if (!focus || !this.regionRect) { Object.assign(card.style, reset, { bottom: '9%', left: '50%', transform: 'translateX(-50%)' }); return }
     const rect = this.regionRect(focus)
     const vw = window.innerWidth, vh = window.innerHeight
