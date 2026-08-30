@@ -207,21 +207,21 @@ export class Checkpoint {
 
   // -------- rendering --------
   private drawChrome(ctx: Ctx, t: number) {
-    // belt band
+    // belt band — ends before the portal (gap, then the portal aperture)
     const by = BELT_Y + 6
+    const beltEnd = PORTAL.cx - PORTAL.w / 2 - 30
     ctx.fillStyle = 'rgba(18,11,3,0.9)'
-    ctx.fillRect(20, by, VW - 40, 20)
-    hline(ctx, 20, VW - 20, by, amber(0.35), 1)
-    hline(ctx, 20, VW - 20, by + 20, amber(0.28), 1)
-    // belt cleats scrolling
+    ctx.fillRect(20, by, beltEnd - 20, 20)
+    hline(ctx, 20, beltEnd, by, amber(0.35), 1)
+    hline(ctx, 20, beltEnd, by + 20, amber(0.28), 1)
+    // belt cleats scrolling left → right (with the flow of the boxes)
     ctx.fillStyle = amber(0.22)
-    const off = (t * 60) % 26
-    for (let x = 20 - off; x < VW - 20; x += 26) ctx.fillRect(x, by + 3, 8, 14)
+    const off = 26 - ((t * 60) % 26)
+    for (let x = 20 - off; x < beltEnd; x += 26) ctx.fillRect(x, by + 3, 8, 14)
 
     // zone labels + dividers
     text(ctx, WORKSHOP.label, WORKSHOP.x0 + 4, by + 46, 18, amber(0.5))
     text(ctx, QUEUE.label + `  ·  DEPTH ${this.queueDepth()}`, QUEUE.x0 + 4, by + 46, 18, amber(0.5))
-    text(ctx, 'PORTAL', PORTAL.cx - 30, by + 46, 18, amber(0.5))
     for (const dx of [WORKSHOP.x1, QUEUE.x1]) {
       ctx.strokeStyle = amber(0.14); ctx.setLineDash([3, 5]); ctx.lineWidth = 1
       ctx.beginPath(); ctx.moveTo(dx, 92); ctx.lineTo(dx, by); ctx.stroke(); ctx.setLineDash([])

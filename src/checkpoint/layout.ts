@@ -19,7 +19,7 @@ export const CHUTE_X = 742
 export const PIT_Y = 540
 
 /** Portal aperture on the right; passed boxes travel here. */
-export const PORTAL = { cx: 1150, cy: BELT_Y - 6, w: 132, h: 190 }
+export const PORTAL = { cx: 1086, cy: BELT_Y - 6, w: 132, h: 190 }
 
 /** Scoreboard strip (bottom). */
 export const BOARD = { x0: 40, y0: 566, x1: 1240, y1: 700 }

@@ -196,18 +196,18 @@ button.big:hover { background: var(--amber); color: #1a0f02; text-shadow: none; 
 
 .b-card {
   position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%);
-  width: min(720px, 82vw); background: rgba(10,7,2,0.92);
-  border: 2px solid var(--amber-dim); padding: 22px 30px 20px; z-index: 3;
+  width: min(900px, 88vw); background: rgba(10,7,2,0.92);
+  border: 2px solid var(--amber-dim); padding: 15px 30px 14px; z-index: 3;
 }
-.b-card::before, .b-card::after {
+/*card-corners*/ .b-card::before, .b-card::after {
   content: ""; position: absolute; width: 14px; height: 14px; border: 2px solid var(--amber); opacity: 0.7;
 }
 .b-card::before { top: -2px; left: -2px; border-right: none; border-bottom: none; }
 .b-card::after { bottom: -2px; right: -2px; border-left: none; border-top: none; }
 .b-tag { font-size: 14px; letter-spacing: 3px; color: var(--amber-dim); margin-bottom: 6px; }
-.b-heading { font-size: 30px; letter-spacing: 3px; color: var(--amber-hot); margin: 0 0 12px; }
-.b-lines { min-height: 116px; }
-.b-lines p { font-size: 19px; line-height: 1.4; color: var(--amber-mid); margin: 0 0 7px; min-height: 1.1em; }
+.b-heading { font-size: 27px; letter-spacing: 3px; color: var(--amber-hot); margin: 0 0 8px; }
+.b-lines { min-height: 60px; }
+.b-lines p { font-size: 18px; line-height: 1.3; color: var(--amber-mid); margin: 0 0 4px; min-height: 1.05em; }
 .b-controls { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
 .b-controls.hidden { visibility: hidden; }
 .b-dots { display: flex; gap: 7px; }

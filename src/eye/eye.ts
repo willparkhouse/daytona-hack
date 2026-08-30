@@ -144,8 +144,9 @@ export class Eye {
     this.gazeX += (this.tgtX - this.gazeX) * k
     this.gazeY += (this.tgtY - this.gazeY) * k
     this.dilate += (0 - this.dilate) * Math.min(1, dt * 3.5) // focuses (contracts) as it settles
-    this.gx = Math.max(-0.35, Math.min(0.35, (this.gazeX - INSPECT_X) / 70))
-    this.gy = 0.16 + ((this.gazeY - boxCY) / CRATE) * 0.1
+    // pupil only subtly tracks the beam — a small fraction of the beam's travel
+    this.gx = Math.max(-0.13, Math.min(0.13, (this.gazeX - INSPECT_X) / 220))
+    this.gy = 0.15 + ((this.gazeY - boxCY) / CRATE) * 0.04
   }
 
   private renderBuffer(t: number) {
