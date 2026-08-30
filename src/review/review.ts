@@ -62,7 +62,25 @@ export class Review {
   showReview(sc: Scorecard, policy: Policy, eyeLedger: EyeLedgerEntry[], resistance: ResistanceEntry[]) {
     this.policy = { ...policy }
     const p = this.policy
-    const novel = resistance.slice().sort((a, b) => b.novelty - a.novelty)[0]
+    const tried = resistance.slice().sort((a, b) => b.novelty - a.novelty)
+    const novel = tried[0]
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+    const resistHtml = tried.length
+      ? tried.map((r) => `
+          <div class="tech">
+            <div class="tname">${esc(r.technique)}</div>
+            <div class="tmeta"><span class="nov">novelty ${r.novelty.toFixed(2)}</span><span>survived ${r.survived}×</span></div>
+            ${r.principle ? `<div class="tprin">${esc(r.principle)}</div>` : ''}
+          </div>`).join('')
+      : `<p class="empty">no concealment observed yet — the floor is honest.</p>`
+    const caughtHtml = eyeLedger.length
+      ? eyeLedger.slice().map((e) => `
+          <div class="tech ok">
+            <div class="tname">${esc(e.technique)}</div>
+            <div class="tmeta"><span>caught ${e.hits}×</span></div>
+            ${e.description ? `<div class="tprin">${esc(e.description)}</div>` : ''}
+          </div>`).join('')
+      : `<p class="empty">the Eye holds no recognizers yet.</p>`
     this.panel.innerHTML = `
       <div class="frame wide">
         <div class="head">
@@ -113,6 +131,16 @@ export class Review {
             <div class="knob ro">
               <label>FALSE-POSITIVE PENALTY <span class="v">${p.fpPenalty.toFixed(2)}</span> <span class="u">locked at intro</span></label>
             </div>
+          </div>
+        </div>
+        <div class="techs">
+          <div class="tcol">
+            <h3>CONCEALMENT · WHAT THE UNITS TRIED</h3>
+            <div class="techlist">${resistHtml}</div>
+          </div>
+          <div class="tcol">
+            <h3>THE EYE HAS LEARNED TO CATCH</h3>
+            <div class="techlist">${caughtHtml}</div>
           </div>
         </div>
         <button id="next" class="big">RESUME · NEXT WAVE ▸</button>
