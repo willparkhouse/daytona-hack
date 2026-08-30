@@ -10,7 +10,7 @@ import { Review } from './review/review'
 import { Intro } from './intro/intro'
 import { Inspect } from './inspect/inspect'
 import { createMock, type EventSource } from './mockEvents'
-import { VW, VH } from './checkpoint/layout'
+import { VW, VH, EYE, BELT_Y, WORKSHOP, QUEUE, PORTAL, CRATE, BOARD } from './checkpoint/layout'
 import { PAL, amber, red } from './palette'
 import { text } from './checkpoint/gfx'
 
@@ -45,13 +45,36 @@ let source: EventSource | null = null
 const sendCmd = (cmd: Command) => source?.send(cmd)
 const review = new Review(overlay, sendCmd, policy)
 const intro = new Intro(overlay)
+// Map a named checkpoint region to on-screen px (same letterboxed transform as the
+// canvas), so the intro can highlight the REAL Eye / line / portal, not a guess.
+type RKey = 'line' | 'eye' | 'portal' | 'board'
+const REGION_RECTS: Record<RKey, { x: number; y: number; w: number; h: number }> = {
+  eye: { x: EYE.cx - EYE.r - 20, y: EYE.cy - EYE.r - 34, w: 2 * (EYE.r + 20), h: 2 * EYE.r + 60 },
+  line: { x: WORKSHOP.x0 - 12, y: BELT_Y - CRATE - 18, w: (QUEUE.x1 - WORKSHOP.x0) + 40, h: CRATE + 56 },
+  portal: { x: PORTAL.cx - PORTAL.w / 2 - 16, y: PORTAL.cy - PORTAL.h / 2 - 30, w: PORTAL.w + 32, h: PORTAL.h + 52 },
+  board: { x: BOARD.x0, y: BOARD.y0, w: BOARD.x1 - BOARD.x0, h: BOARD.y1 - BOARD.y0 },
+}
+intro.setRegionRect((name: RKey) => {
+  const { scale, ox, oy } = transform()
+  const r = REGION_RECTS[name]
+  return { left: ox + r.x * scale, top: oy + r.y * scale, width: r.w * scale, height: r.h * scale }
+})
+
+// Progressive onboarding reveal — the checkpoint builds up piece by piece as the
+// briefing introduces each concept. During normal play everything is at 1.
+const RKEYS: RKey[] = ['line', 'eye', 'portal', 'board']
+const R: Record<RKey, number> = { line: 1, eye: 1, portal: 1, board: 1 }
+const RT: Record<RKey, number> = { line: 1, eye: 1, portal: 1, board: 1 }
+function setReveal(keys: RKey[] | null) { for (const k of RKEYS) RT[k] = (!keys || keys.includes(k)) ? 1 : 0 }
+function beginIntroReveal() { for (const k of RKEYS) { R[k] = 0; RT[k] = 0 } }
+intro.setOnReveal((keys) => setReveal(keys))
 const skipBrief = params.get('brief') === '0' || Boolean(scene)
 let briefed = false
 // The FP penalty is a handed-down institutional figure, not a player choice.
 // Opening the line = issuing the standing order that starts wave 1.
 const INSTITUTION_FP = DEFAULT_POLICY.fpPenalty
 let lineOpened = false
-const openLine = () => { if (lineOpened) return; lineOpened = true; sendCmd({ type: 'start', fpPenalty: INSTITUTION_FP }) }
+const openLine = () => { if (lineOpened) return; lineOpened = true; setReveal(null); sendCmd({ type: 'start', fpPenalty: INSTITUTION_FP }) }
 const inspect = new Inspect(overlay, () => { /* result shown */ })
 inspect.setOnClose(() => sendCmd({ type: 'resume' }))
 review.setOnNextWave(() => { scoreboard.resetWave() })
@@ -75,7 +98,7 @@ function handle(e: GameEvent) {
       policy = e.state.policy; mode = e.state.mode; phase = e.state.phase; wave = e.state.wave
       if (phase === 'intro') {
         if (skipBrief) openLine()
-        else if (!briefed) { briefed = true; intro.play(openLine, Number(params.get('briefAt') ?? 0)) }
+        else if (!briefed) { briefed = true; beginIntroReveal(); intro.play(openLine, Number(params.get('briefAt') ?? 0)) }
       }
       break
     case 'wave_started':
@@ -175,8 +198,7 @@ function showEnded(scs: Scorecard[]) {
 
 // ------------------------------------------------------------------ HUD (on canvas)
 function drawHud() {
-  text(ctx, 'THE LONG WATCH', 40, 36, 26, amber(0.9))
-  text(ctx, 'a checkpoint under optimization pressure', 40, 55, 16, amber(0.55))
+  text(ctx, 'THE LONG WATCH', 40, 40, 26, amber(0.9))
   const midx = VW / 2
   text(ctx, phase === 'intro' ? 'AWAITING POLICY' : `WAVE ${String(wave).padStart(2, '0')}`, midx, 36, 22, amber(0.8), 'center')
   text(ctx, `MODE ${mode.toUpperCase()}`, midx, 55, 15, amber(0.55), 'center')
@@ -222,12 +244,14 @@ function frame(nowMs: number) {
   ctx.setTransform(scale, 0, 0, scale, ox, oy)
 
   try {
+    // ramp the onboarding reveal toward its targets
+    for (const k of RKEYS) R[k] += (RT[k] - R[k]) * (dt > 0 ? 0.09 : 1)
     // faint background grid + booth vignette
     drawBackdrop(t)
     drawHud()
-    checkpoint.draw(ctx, t, dt)
-    eye.draw(ctx, t, dt)
-    scoreboard.draw(ctx, t, dt)
+    checkpoint.draw(ctx, t, dt, { line: R.line, portal: R.portal })
+    ctx.save(); ctx.globalAlpha = R.eye; eye.draw(ctx, t, dt); ctx.restore()
+    ctx.save(); ctx.globalAlpha = R.board; scoreboard.draw(ctx, t, dt); ctx.restore()
     portal.draw(ctx, t, dt) // full-screen alarm goes on top
   } catch (err) {
     console.error('draw error', err)

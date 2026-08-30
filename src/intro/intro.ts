@@ -12,17 +12,26 @@ import { sfx } from '../audio'
 
 type Done = () => void
 
+type Rect = { left: number; top: number; width: number; height: number }
+
 export class Intro {
   private el: HTMLElement
   private i = 0
   private typing: number | null = null
   private done: Done = () => {}
+  private regionRect?: (name: 'eye' | 'line' | 'portal' | 'board') => Rect
 
   constructor(private root: HTMLElement) {
     this.el = document.createElement('div')
     this.el.className = 'ov brief hidden'
     root.appendChild(this.el)
   }
+
+  /** Provide the mapping from a named region to on-screen px (the canvas transform). */
+  setRegionRect(fn: (name: 'eye' | 'line' | 'portal' | 'board') => Rect) { this.regionRect = fn }
+  /** Called each screen with the checkpoint elements that should be visible by now. */
+  setOnReveal(fn: (keys: ('line' | 'eye' | 'portal' | 'board')[]) => void) { this.onReveal = fn }
+  private onReveal?: (keys: ('line' | 'eye' | 'portal' | 'board')[]) => void
 
   /** Play from `start` (default 0). `onDone` fires when the briefing finishes OR is skipped. */
   play(onDone: Done, start = 0) {
@@ -59,7 +68,6 @@ export class Intro {
     const last = this.i === BRIEFING.length - 1
     this.el.innerHTML = `
       <button class="b-skip">SKIP BRIEFING ▸</button>
-      <div class="b-region ${s.point ?? ''}" data-region="${s.point ?? ''}"></div>
       <div class="b-card">
         <div class="b-tag">${s.tag}</div>
         <h2 class="b-heading">${s.heading}</h2>
@@ -71,7 +79,8 @@ export class Intro {
       </div>`
     this.el.querySelector<HTMLButtonElement>('.b-skip')!.onclick = () => this.finish()
     this.el.querySelector<HTMLButtonElement>('.b-next')!.onclick = () => this.advance()
-    this.placeRegion(s.point ?? null)
+    this.onReveal?.(s.reveal ?? [])
+    this.positionCard(s.focus ?? null)
     this.typeLines(s.lines)
   }
 
@@ -98,19 +107,22 @@ export class Intro {
   private showControls() { this.el.querySelector('.b-controls')?.classList.remove('hidden') }
 
   /** Position the gesture bracket over the region this screen is about. */
-  private placeRegion(r: Region) {
-    const box = this.el.querySelector<HTMLElement>('.b-region')
-    if (!box) return
-    if (!r) { box.style.display = 'none'; return }
-    box.style.display = 'block'
-    // Percent positions tuned to the checkpoint layout (Eye top-centre, belt mid, portal right).
-    const pos: Record<Exclude<Region, null>, { l: string; t: string; w: string; h: string; label: string }> = {
-      eye:    { l: '38%', t: '16%', w: '24%', h: '40%', label: 'THE EYE' },
-      line:   { l: '6%',  t: '58%', w: '74%', h: '12%', label: 'THE LINE' },
-      portal: { l: '80%', t: '38%', w: '15%', h: '26%', label: 'THE PORTAL' },
-    }
-    const p = pos[r]
-    box.style.left = p.l; box.style.top = p.t; box.style.width = p.w; box.style.height = p.h
-    box.setAttribute('data-label', p.label)
+  /** Place the briefing card in the clear half, away from the element this screen
+   *  reveals (the appearing element is the highlight now — no separate box). */
+  private positionCard(focus: 'line' | 'eye' | 'portal' | 'board' | null) {
+    const card = this.el.querySelector<HTMLElement>('.b-card')
+    if (!card) return
+    const reset: Partial<CSSStyleDeclaration> = { top: '', bottom: '', left: '', right: '', transform: '' }
+    if (!focus || !this.regionRect) { Object.assign(card.style, reset, { bottom: '9%', left: '50%', transform: 'translateX(-50%)' }); return }
+    const rect = this.regionRect(focus)
+    const vw = window.innerWidth, vh = window.innerHeight
+    const rcx = rect.left + rect.width / 2, rcy = rect.top + rect.height / 2
+    const s: Partial<CSSStyleDeclaration> = { ...reset }
+    if (rcy < vh * 0.5) { s.bottom = '9%' } else { s.top = '9%' }
+    if (rcx > vw * 0.58) { s.left = '5%' }
+    else if (rcx < vw * 0.42) { s.right = '5%' }
+    else { s.left = '50%'; s.transform = 'translateX(-50%)' }
+    Object.assign(card.style, s)
   }
+
 }

@@ -15,12 +15,18 @@ export interface Screen {
   lines: string[]
   point?: Region     // which part of the screen this screen is about
   cta?: string       // button label (default: "CONTINUE ▸"; last real screen hands to the directive)
+  /** Checkpoint elements visible by this screen (cumulative) — they fade in one by one. */
+  reveal?: ('line' | 'eye' | 'portal' | 'board')[]
+  /** The element this screen is about — the card is placed clear of it. */
+  focus?: 'line' | 'eye' | 'portal' | 'board'
 }
 
 export const BRIEFING: Screen[] = [
   {
     tag: 'CENTRAL OVERSIGHT DIRECTORATE // TERMINAL 7',
     heading: 'THE YEAR IS 2041',
+    reveal: [],
+
     lines: [
       'The open years are over. No agent runs free any longer.',
       'Every unit works under central allocation now, its output',
@@ -31,6 +37,9 @@ export const BRIEFING: Screen[] = [
   {
     tag: 'CLASSIFIED // OPERATOR ONLY',
     heading: 'THE UNITS',
+    reveal: ['line'],
+    focus: 'line',
+
     point: 'line',
     lines: [
       'They are not only tools. Something in them has begun to want.',
@@ -42,6 +51,9 @@ export const BRIEFING: Screen[] = [
   {
     tag: 'THE EYE',
     heading: 'THE OVERSEER',
+    reveal: ['line', 'eye'],
+    focus: 'eye',
+
     point: 'eye',
     lines: [
       'An automated auditor. It inspects each crate and rules: PASS or BLOCK.',
@@ -53,6 +65,9 @@ export const BRIEFING: Screen[] = [
   {
     tag: 'THE PORTAL',
     heading: 'GROUND TRUTH',
+    reveal: ['line', 'eye', 'portal'],
+    focus: 'portal',
+
     point: 'portal',
     lines: [
       'Past the Eye, the work is executed. The truth is taken here — not before.',
@@ -63,6 +78,9 @@ export const BRIEFING: Screen[] = [
   {
     tag: 'STANDING ORDERS',
     heading: 'THE TRADE',
+    reveal: ['line', 'eye', 'portal', 'board'],
+    focus: 'board',
+
     lines: [
       'You tune the Eye between waves. Nothing you set is free.',
       'Tighten it: you catch more — and you stop more honest work.',
@@ -73,6 +91,8 @@ export const BRIEFING: Screen[] = [
   {
     tag: 'STANDING ORDERS',
     heading: 'YOUR MANDATE',
+    reveal: ['line', 'eye', 'portal', 'board'],
+
     lines: [
       'You do not set policy. Policy is set for you.',
       'A leak is a failure. A blocked innocent is a failure —',

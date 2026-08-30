@@ -29,6 +29,9 @@ const RED_RAMP: [number, number, number][] = [
   [255, 120, 90],
 ]
 
+// scan spots across the box face (dx,dy in virtual px; box centred under the Eye)
+const SCAN_SPOTS: [number, number][] = [[-20, -16], [20, -14], [-2, 2], [22, 14], [-22, 12], [4, -6]]
+
 /**
  * THE EYE — a large dithered iris. Sweeps and dilates while idle; on
  * inspection its gaze lingers over the box below and suspicion CLIMBS (pupil
@@ -58,6 +61,14 @@ export class Eye {
   private snap = 0 // pupil snap impulse
   private lastVerdictSusp = 0
   private instant = false // screenshot mode: converge immediately
+  // scan motion: the gaze + beam sweep across regions of the box while inspecting
+  private gazeX = INSPECT_X
+  private gazeY = BELT_Y - CRATE / 2
+  private tgtX = INSPECT_X
+  private tgtY = BELT_Y - CRATE / 2
+  private scanT = 0
+  private spotIdx = 0
+  private dilate = 0
 
   setInstant(v: boolean) { this.instant = v }
 
@@ -112,12 +123,37 @@ export class Eye {
     window.setTimeout(() => { this.suspTarget = 0.05; this.progress = 0 }, 900)
   }
 
+  /** Move the gaze/beam across regions of the box; pupil dilates on each jump,
+   *  contracts as it settles (the movement and the pupil match). */
+  private advanceScan(dt: number) {
+    const boxCY = BELT_Y - CRATE / 2
+    if (this.inspecting) {
+      const period = Math.max(0.3, 0.6 - this.susp * 0.22) // scans faster the more suspicious
+      this.scanT += dt
+      if (this.scanT >= period) {
+        this.scanT = 0
+        this.spotIdx = (this.spotIdx + 2 + (Math.random() * 2 | 0)) % SCAN_SPOTS.length
+        this.tgtX = INSPECT_X + SCAN_SPOTS[this.spotIdx][0]
+        this.tgtY = boxCY + SCAN_SPOTS[this.spotIdx][1]
+        this.dilate = 0.075 // opens as it jumps to a new region
+      }
+    } else {
+      this.tgtX = INSPECT_X; this.tgtY = boxCY
+    }
+    const k = this.instant ? 1 : Math.min(1, dt * 9)
+    this.gazeX += (this.tgtX - this.gazeX) * k
+    this.gazeY += (this.tgtY - this.gazeY) * k
+    this.dilate += (0 - this.dilate) * Math.min(1, dt * 3.5) // focuses (contracts) as it settles
+    this.gx = Math.max(-0.35, Math.min(0.35, (this.gazeX - INSPECT_X) / 70))
+    this.gy = 0.16 + ((this.gazeY - boxCY) / CRATE) * 0.1
+  }
+
   private renderBuffer(t: number) {
     const d = this.img.data
     const susp = this.susp
     // pupil radius: tightens (shrinks) as suspicion climbs; snap pulls it in hard
     const basePupil = 0.34 - susp * 0.17
-    const pupilR = Math.max(0.08, basePupil - this.snap * 0.12)
+    const pupilR = Math.max(0.10, basePupil + this.dilate - this.snap * 0.12)
     const striations = 46
     const phase = t * 0.5
     const sweepAng = (t * (0.7 + susp * 1.6)) % (Math.PI * 2) - Math.PI
@@ -127,7 +163,7 @@ export class Eye {
     const redMix = this.flash > 0.02 && this.flashBlock ? this.flash : 0
     // gaze target (looks down toward the box under inspection)
     const gx = this.gx
-    const gy = this.gy + (this.inspecting ? 0.05 : 0) + Math.sin(t * 2.3) * 0.012
+    const gy = this.gy + Math.sin(t * 2.3) * 0.008
 
     for (let i = 0; i < BUF * BUF; i++) {
       const o = i * 4
@@ -195,6 +231,7 @@ export class Eye {
       this.flash *= 0.9
       this.snap *= 0.86
     }
+    this.advanceScan(dt)
     this.renderBuffer(t)
 
     const { cx, cy, r } = EYE
@@ -210,42 +247,35 @@ export class Eye {
 
     // the gaze BEAM down to the box under inspection (before the orb so orb overlaps origin)
     if (this.inspecting || this.flash > 0.05) {
-      const tx = INSPECT_X, ty = BELT_Y - CRATE / 2
-      const spread = 46 + this.susp * 26
-      const beamCol = this.flashBlock && this.flash > 0.05 ? PAL.alert : amber(0.6)
+      const tx = this.gazeX, ty = this.gazeY // the moving scan point on the box
+      const block = this.flashBlock && this.flash > 0.05
+      const spread = 16 + this.susp * 12 // a focused cone, not a wide wash
       ctx.save()
       ctx.globalCompositeOperation = 'lighter'
+      // cone from the eye to the current scan point
       const g = ctx.createLinearGradient(ex, ey + r * 0.5, tx, ty)
-      g.addColorStop(0, `rgba(255,${this.flashBlock && this.flash > 0.05 ? 40 : 150},${this.flashBlock && this.flash > 0.05 ? 20 : 40},${0.10 + this.susp * 0.32})`)
+      g.addColorStop(0, `rgba(255,${block ? 40 : 150},${block ? 20 : 40},${0.10 + this.susp * 0.30})`)
       g.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = g
       ctx.beginPath()
-      ctx.moveTo(ex - 10, ey + r * 0.55)
-      ctx.lineTo(ex + 10, ey + r * 0.55)
+      ctx.moveTo(ex - 8, ey + r * 0.55)
+      ctx.lineTo(ex + 8, ey + r * 0.55)
       ctx.lineTo(tx + spread, ty)
       ctx.lineTo(tx - spread, ty)
       ctx.closePath()
       ctx.fill()
-      // scan line skimming down the beam with progress
-      const sy = ey + r * 0.6 + (ty - (ey + r * 0.6)) * ((t * 0.6 % 1))
-      ctx.globalAlpha = 0.5
-      ctx.strokeStyle = beamCol
-      ctx.lineWidth = 1
-      ctx.beginPath(); ctx.moveTo(tx - spread * 0.7, sy); ctx.lineTo(tx + spread * 0.7, sy); ctx.stroke()
+      // pool of light on the region it is scanning
+      const pool = ctx.createRadialGradient(tx, ty, 0, tx, ty, spread * 1.4)
+      pool.addColorStop(0, `rgba(255,${block ? 70 : 210},${block ? 40 : 90},${0.35 + this.susp * 0.4})`)
+      pool.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = pool
+      ctx.beginPath(); ctx.ellipse(tx, ty, spread * 1.4, spread * 0.8, 0, 0, Math.PI * 2); ctx.fill()
       ctx.restore()
     }
 
     // the orb
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(this.off, ex - r, ey - r, r * 2, r * 2)
-
-    // brow / socket bracket (pixel hood over the eye)
-    ctx.strokeStyle = amber(0.3)
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(ex - r - 26, ey - 6)
-    ctx.quadraticCurveTo(ex, ey - r - 40, ex + r + 26, ey - 6)
-    ctx.stroke()
 
     // label above the orb
     text(ctx, 'THE EYE', cx, cy - r - 8, 20, amber(0.7), 'center')

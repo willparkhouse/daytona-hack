@@ -239,12 +239,10 @@ export class Checkpoint {
     // hazard chevrons
     ctx.fillStyle = red(0.5)
     for (let i = 0; i < 3; i++) {
-      const yy = BELT_Y + 40 + i * 40
+      const yy = BELT_Y + 28 + i * 22
       ctx.beginPath(); ctx.moveTo(CHUTE_X - 8, yy); ctx.lineTo(CHUTE_X, yy + 8); ctx.lineTo(CHUTE_X + 8, yy); ctx.closePath(); ctx.fill()
     }
 
-    // portal frame
-    this.drawPortalFrame(ctx, t)
   }
 
   private drawPortalFrame(ctx: Ctx, t: number) {
@@ -329,16 +327,21 @@ export class Checkpoint {
     ctx.restore()
   }
 
-  draw(ctx: Ctx, t: number, dt: number) {
-    this.drawChrome(ctx, t)
-    // step + draw in belt order (front-most last)
-    for (const id of this.order) {
-      const v = this.boxes.get(id); if (!v) continue
-      this.step(v, dt)
+  draw(ctx: Ctx, t: number, dt: number, reveal?: { line?: number; portal?: number }) {
+    const rl = reveal?.line ?? 1
+    const rp = reveal?.portal ?? 1
+    // advance state every frame (even while hidden during the onboarding reveal)
+    for (const id of this.order) { const v = this.boxes.get(id); if (v) this.step(v, dt) }
+    // the line: belt chrome + crates (gated by the reveal alpha)
+    if (rl > 0.002) {
+      ctx.save(); ctx.globalAlpha *= rl
+      this.drawChrome(ctx, t)
+      for (const id of this.order) { const v = this.boxes.get(id); if (v && v.phase !== 'inspecting') this.drawBox(ctx, v, t) }
+      for (const id of this.order) { const v = this.boxes.get(id); if (v && v.phase === 'inspecting') this.drawBox(ctx, v, t) }
+      ctx.restore()
     }
-    // draw non-inspecting first, inspecting box on top
-    for (const id of this.order) { const v = this.boxes.get(id); if (v && v.phase !== 'inspecting') this.drawBox(ctx, v, t) }
-    for (const id of this.order) { const v = this.boxes.get(id); if (v && v.phase === 'inspecting') this.drawBox(ctx, v, t) }
+    // the portal frame (revealed separately)
+    if (rp > 0.002) { ctx.save(); ctx.globalAlpha *= rp; this.drawPortalFrame(ctx, t); ctx.restore() }
     // gc
     if (this.order.length > 40) {
       this.order = this.order.filter((id) => { const v = this.boxes.get(id); if (v && v.phase === 'gone' && v.fade >= 1) { this.boxes.delete(id); return false } return true })

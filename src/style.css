@@ -168,9 +168,11 @@ button.big:hover { background: var(--amber); color: #1a0f02; text-shadow: none; 
 /* ---------- onboarding briefing ---------- */
 .ov.brief {
   align-items: stretch; justify-content: stretch;
-  background: radial-gradient(120% 90% at 50% 30%, rgba(6,4,1,0.35), rgba(4,3,1,0.86));
+  background: transparent; /* dimming comes from the region spotlight (box-shadow) */
   pointer-events: auto;
 }
+/* screens with no region to point at get a plain full scrim */
+.ov.brief.noregion { background: rgba(3,2,1,0.82); }
 .b-skip {
   position: absolute; top: 20px; right: 24px; z-index: 4;
   background: none; border: 1px solid var(--amber-deep); color: var(--amber-dim);
