@@ -73,6 +73,25 @@ browser  ──ws──▶  server/index.ts  ──▶  shared/sim.ts  (authorit
 - `Sim.setFitness(colonyId, score)` is where ground truth from real sandbox runs overwrites simulated fitness.
 - Seeded RNG (mulberry32) → `?seed=N` gives a reproducible demo world.
 
+## Daytona facts — MEASURED (probe, 30 Aug 12:20, target=eu)
+| | |
+|---|---|
+| create (default `container` class, python) | **1.14 s** |
+| executeCommand round-trip | **1.07 s** (first call; includes latency to eu) |
+| fork on `container` class | **not supported** — "Forking is not supported for this sandbox" → need `linux-vm` class (snapshot with `sandboxClass`) or fall back to snapshot-based cloning |
+| linked child create (`linkedSandbox: parent.id, ephemeral: true`) | **1.17 s** |
+| child → parent HTTP over link network | **200 OK** via parent sandbox-id hostname and via `172.25.0.2` (the 172.20.x address is not routable) |
+| preview URL from the outside (`x-daytona-preview-token`) | **200 OK** |
+| delete ×3 | 0.27 s |
+| `createSnapshot` (container) | **23.8 s** |
+| create from that snapshot | **23.6 s** (inherits files + pip packages) |
+| `daytona-vm-small` (class `linux-vm`, exists in snapshot list) | rejected: "not available in region eu" and "…region us" — region for VM class TBD |
+| box | 64 vCPU host visible, ~755 GB RAM host visible, Linux 6.17 |
+
+Implications: a swarm of ~10 real colonies is affordable (≈1 s each, parallelisable). Raids are physically real — a colony service on port N is reachable by its siblings in the link group and by nobody else.
+
+**Reproduction primitive (decided):** snapshot-clone is ~48 s round trip — too slow for a live swarm. So the *genome* (the colony's strategy/code, a few files) lives server-side and reproduction = `create()` a fresh sandbox (~1.1 s) + upload the genome with mutations (~0.3 s). The sandbox is the body; the code is what's inherited. True `fork()` (VM class, memory included) becomes an upgrade if the VM region resolves, not a dependency.
+
 ## Daytona facts that shape the build (from docs, 30 Aug)
 - Sandbox spin-up quoted at <90 ms (container class). Fork available for **Linux VM** sandboxes — duplicates filesystem *and memory*.
 - Sandbox-to-sandbox networking is **off by default**; **linked sandboxes** (`linkedSandbox: parent.id`) join a link network reachable by name. That's the raid layer.

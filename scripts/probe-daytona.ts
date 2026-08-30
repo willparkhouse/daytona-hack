@@ -14,6 +14,9 @@ import { Swarm, GAME_LABEL } from '../server/daytona'
 const now = () => performance.now()
 const since = (t0: number) => `${(now() - t0).toFixed(0)} ms`
 const LABELS = { ...GAME_LABEL, probe: '1' }
+/** --vm: use the default Linux VM snapshot (fork-capable) instead of the container class. */
+const VM = process.argv.includes('--vm')
+const BASE = VM ? { snapshot: 'daytona-vm-small' as const } : { language: 'python' as const }
 const short = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/\s+/g, ' ').slice(0, 220)
 
 async function main() {
@@ -24,7 +27,7 @@ async function main() {
   try {
     // 1. create
     let t0 = now()
-    const a = await d.create({ language: 'python', labels: LABELS, autoDeleteInterval: 30 })
+    const a = await d.create({ ...BASE, labels: LABELS, autoDeleteInterval: 30 })
     made.push(a); R.create = since(t0)
     console.log(`[1] sandbox ${a.id} name=${a.name} class=${a.sandboxClass ?? '?'} state=${a.state} target=${a.target}`)
 
@@ -48,8 +51,8 @@ async function main() {
     t0 = now()
     let child: Sandbox | null = null
     try {
-      try { child = await d.create({ language: 'python', labels: LABELS, linkedSandbox: a.id, ephemeral: true }) }
-      catch (e) { console.log('[4] linked create (ephemeral) failed, retrying autoDeleteInterval=0:', short(e)); child = await d.create({ language: 'python', labels: LABELS, linkedSandbox: a.id, autoDeleteInterval: 0 }) }
+      try { child = await d.create({ ...BASE, labels: LABELS, linkedSandbox: a.id, ephemeral: true }) }
+      catch (e) { console.log('[4] linked create (ephemeral) failed, retrying autoDeleteInterval=0:', short(e)); child = await d.create({ ...BASE, labels: LABELS, linkedSandbox: a.id, autoDeleteInterval: 0 }) }
       made.push(child); R.linkedCreate = since(t0)
       await a.process.createSession('srv')
       await a.process.executeSessionCommand('srv', { command: 'python3 -m http.server 8000 --bind 0.0.0.0', runAsync: true })

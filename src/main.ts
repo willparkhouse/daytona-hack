@@ -15,9 +15,12 @@ let state: WorldState | null = null
 let send: (m: ClientMsg) => void = () => {}
 let local: Sim | null = null
 
+const params = new URLSearchParams(location.search)
 function startLocal() {
-  local = new Sim({ seed: Number(new URLSearchParams(location.search).get('seed') ?? 7) })
+  local = new Sim({ seed: Number(params.get('seed') ?? 7) })
   local.launch(3)
+  // ?skip=N fast-forwards the standalone sim (screenshots, demo staging).
+  for (let i = Number(params.get('skip') ?? 0); i > 0; i--) local.tick()
   state = local.state
   conn.textContent = 'standalone sim'
   send = (m) => { if (m.type === 'instruct') local!.instruct(m.colonyId, m.text); if (m.type === 'phase') setPhase(m.phase) }
@@ -105,5 +108,6 @@ function frame(tMs: number) {
   requestAnimationFrame(frame)
 }
 requestAnimationFrame(frame)
+if (params.get('phase') === '2') setPhase(2)
 connect()
 export {}
