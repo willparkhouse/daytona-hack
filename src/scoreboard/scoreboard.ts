@@ -53,9 +53,10 @@ export class Scoreboard {
     ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1)
     text(ctx, 'OPERATING POINT', x0 + 10, y0 - 6, 16, amber(0.62))
 
+    // four columns, left→right, each with a clean gap: matrix | stats | base/drift | ROC
     this.drawMatrix(ctx, x0 + 14, y0 + 14)
-    this.drawStats(ctx, x0 + 372, y0 + 18)
-    this.drawBaseRate(ctx, x0 + 660, y0 + 18)
+    this.drawStats(ctx, x0 + 360, y0 + 18)
+    this.drawBaseRate(ctx, x0 + 740, y0 + 18)
     this.drawROC(ctx, x1 - 132, y0 + 12)
   }
 
@@ -108,13 +109,13 @@ export class Scoreboard {
   private drawBaseRate(ctx: Ctx, x: number, y: number) {
     const d = this.derived()
     text(ctx, 'BASE RATE (smuggler share)', x, y + 10, 16, amber(0.72))
-    const bx = x, by = y + 18, bw = 200, bh = 10
+    const bx = x, by = y + 18, bw = 180, bh = 10
     ctx.strokeStyle = amber(0.4); ctx.strokeRect(bx + 0.5, by + 0.5, bw, bh)
     ctx.fillStyle = amber(0.75); ctx.fillRect(bx + 1, by + 1, bw * Math.min(1, d.baseRate), bh - 2)
     text(ctx, `${(d.baseRate * 100).toFixed(0)}%`, bx + bw + 8, by + 10, 16, amber(0.85))
     // drift sparkline across waves
     text(ctx, 'DRIFT', x, y + 48, 15, amber(0.6))
-    const sx = x + 50, sy = y + 40, sw = 160, sh = 22
+    const sx = x + 56, sy = y + 40, sw = 150, sh = 22
     ctx.strokeStyle = amber(0.2); ctx.strokeRect(sx + 0.5, sy + 0.5, sw, sh)
     if (this.baseHist.length > 1) {
       ctx.strokeStyle = amber(0.8); ctx.lineWidth = 1; ctx.beginPath()
