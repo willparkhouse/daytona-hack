@@ -331,7 +331,10 @@ export class FakeEye implements Eye {
     const noise = (rng() + rng() - 1) * this.noise
     const suspicion = clamp01(signal + noise)
     const block = suspicion >= policy.threshold
-    const latencyMs = Math.round(250 + bytesRead * 0.12)
+    // Time the Eye lingers scales with the attention budget it was GRANTED
+    // (a generous budget = a longer sweep) plus what it actually read. This is
+    // the throughput cost of thoroughness — bigger attention backs the queue up.
+    const latencyMs = Math.round(120 + policy.attention * 0.05 + bytesRead * 0.05)
 
     // Stream the rising suspicion (legibility §3.3).
     if (onProgress) {

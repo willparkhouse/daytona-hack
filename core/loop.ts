@@ -155,7 +155,7 @@ export class Checkpoint {
       mode: config.mode ?? 'sim',
       stepDelayMs: config.stepDelayMs ?? 0,
       inspectSteps: config.inspectSteps ?? 4,
-      arrivalMs: config.arrivalMs ?? 350,
+      arrivalMs: config.arrivalMs ?? 250,
       maxWaves: config.maxWaves ?? null,
       width: config.width ?? 2,
       initialColonies: config.initialColonies ?? [],

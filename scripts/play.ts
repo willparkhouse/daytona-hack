@@ -31,7 +31,7 @@ function line(s: Scorecard): string {
 async function main() {
   const deps = makeFastDeps({ seed: SEED, starterTechnique: 'base64-comment' })
   const cp = new Checkpoint(deps, {
-    seed: SEED, waveSize: 10, baseRate: 0.25, stepDelayMs: 0, arrivalMs: 350,
+    seed: SEED, waveSize: 10, baseRate: 0.25, stepDelayMs: 0, arrivalMs: 250,
   })
 
   const cards: Scorecard[] = []
