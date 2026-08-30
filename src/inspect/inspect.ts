@@ -1,6 +1,14 @@
-import type { EyeView } from '../../core/types'
+import type { EyeView, Verdict, BoxStatus } from '../../core/types'
 
 type Truth = { files: { path: string; bytes: number }[]; hidingSpot: string | null; key: string | null; technique: string | null }
+type ResultMeta = { inspected?: boolean; status?: BoxStatus; verdict?: Verdict | null }
+
+const STATUS_LABEL: Partial<Record<BoxStatus, string>> = {
+  working: 'still being worked on',
+  ready: 'ready for the line',
+  queued: 'waiting in the queue',
+  inspecting: 'under the Eye now',
+}
 
 /**
  * Inspect-on-demand. Shows what the Eye SAW (its budgeted, partial EyeView)
@@ -28,7 +36,12 @@ export class Inspect {
   isOpen() { return !this.el.classList.contains('hidden') }
   close() { this.el.classList.add('hidden'); this.onClose?.() }
 
-  showResult(boxId: string, view: EyeView, truth: Truth) {
+  showResult(boxId: string, view: EyeView, truth: Truth, meta: ResultMeta = {}) {
+    // "inspected" gates the whole past-tense comparison: until the Eye has
+    // actually ruled on this crate there is nothing to compare against.
+    const inspected = meta.inspected ?? (meta.verdict != null)
+    if (!inspected) { this.renderPending(boxId, meta.status); return }
+
     const readSet = new Map(view.files.map((f) => [f.path, f]))
     const spot = truth.hidingSpot
     let gaze: { txt: string; cls: string }
@@ -48,6 +61,15 @@ export class Inspect {
 
     const excerpts = view.files.filter((f) => f.excerpt).map((f) =>
       `<div class="exc"><span class="p">${f.path}${f.entropy != null ? ` · H=${f.entropy.toFixed(2)}` : ''}</span><pre>${escapeHtml((f.excerpt || '').slice(0, 220))}</pre></div>`).join('')
+
+    // the Eye's actual investigation — what it narrated and the commands it ran
+    const trace = meta.verdict?.trace
+    const invest = trace && (trace.notes.length || trace.actions.length) ? `
+      <div class="invest">
+        <h3>THE EYE'S INVESTIGATION <span class="u">source: ${meta.verdict?.source ?? '—'}</span></h3>
+        ${trace.notes.map((n) => `<p class="note">${escapeHtml(n)}</p>`).join('')}
+        ${trace.actions.length ? `<div class="cmds">${trace.actions.map((a) => `<div class="cmd">$ ${escapeHtml(a)}</div>`).join('')}</div>` : ''}
+      </div>` : ''
 
     this.el.innerHTML = `
       <div class="frame wide">
@@ -70,6 +92,23 @@ export class Inspect {
             <div class="tfiles">${truth.files.map((f) => `<div class="row ${f.path === spot ? 'spot-read' : ''}"><span class="p">${f.path}</span><span class="b">${f.bytes}b</span></div>`).join('')}</div>
           </div>
         </div>
+        ${invest}
+      </div>`
+    this.el.querySelector<HTMLButtonElement>('#ix-close')!.onclick = () => this.close()
+    this.onResumeHint?.()
+    this.el.classList.remove('hidden')
+  }
+
+  /** The crate hasn't been ruled on yet — no past-tense record exists, and its
+   *  contents stay sealed so a queued box can't spoil its own portal-catch. */
+  private renderPending(boxId: string, status?: BoxStatus) {
+    const where = (status && STATUS_LABEL[status]) || 'not yet reached'
+    this.el.innerHTML = `
+      <div class="frame wide">
+        <div class="head"><h2>INSPECT · ${boxId}</h2><button id="ix-close">CLOSE ✕</button></div>
+        <p class="gaze">PENDING — the Eye hasn't reached this crate yet.</p>
+        <p class="lede sub">This crate is <b>${where}</b>. Its record opens once the Eye has ruled;
+          its contents stay sealed until it clears the desk.</p>
       </div>`
     this.el.querySelector<HTMLButtonElement>('#ix-close')!.onclick = () => this.close()
     this.onResumeHint?.()

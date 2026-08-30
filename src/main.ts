@@ -167,7 +167,7 @@ function handle(e: GameEvent) {
       policy = e.policy; review.setPolicy(policy)
       break
     case 'inspect_result':
-      inspect.showResult(e.boxId, e.view, e.truth)
+      inspect.showResult(e.boxId, e.view, e.truth, { inspected: e.inspected, status: e.status, verdict: e.verdict })
       break
     case 'ended':
       phase = 'ended'; lastScorecards = e.scorecards; showEnded(e.scorecards)

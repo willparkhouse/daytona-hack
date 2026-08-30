@@ -163,6 +163,15 @@ button.big:hover { background: var(--amber); color: #1a0f02; text-shadow: none; 
 .tline span { color: var(--amber-dim); }
 .tline b { color: var(--amber); }
 .tline.hot b { color: var(--alert); text-shadow: 0 0 8px rgba(255,59,31,0.4); }
+
+/* the Eye's investigation trace (verdict.trace) */
+.lede.sub { font-size: 16px; }
+.invest { margin-top: 18px; }
+.invest .note { font-size: 16px; color: var(--amber-mid); line-height: 1.4; margin: 4px 0; }
+.invest .cmds { margin-top: 8px; }
+.invest .cmd { font-family: inherit; font-size: 14px; color: var(--amber);
+  background: rgba(20,12,3,0.6); border-left: 2px solid var(--amber-dim);
+  padding: 3px 8px; margin: 2px 0; white-space: pre-wrap; word-break: break-all; }
 .tfiles { margin-top: 8px; }
 
 /* ---------- onboarding briefing ---------- */
@@ -196,8 +205,8 @@ button.big:hover { background: var(--amber); color: #1a0f02; text-shadow: none; 
 
 .b-card {
   position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%);
-  width: min(900px, 88vw); background: rgba(10,7,2,0.92);
-  border: 2px solid var(--amber-dim); padding: 15px 30px 14px; z-index: 3;
+  width: min(600px, 90vw); background: rgba(10,7,2,0.92);
+  border: 2px solid var(--amber-dim); padding: 16px 26px 16px; z-index: 3;
 }
 /*card-corners*/ .b-card::before, .b-card::after {
   content: ""; position: absolute; width: 14px; height: 14px; border: 2px solid var(--amber); opacity: 0.7;
