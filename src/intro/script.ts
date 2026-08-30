@@ -19,24 +19,24 @@ export interface Screen {
 
 export const BRIEFING: Screen[] = [
   {
-    tag: 'OVERSIGHT TERMINAL 7 // SHIFT 3',
-    heading: 'ON STATION',
+    tag: 'CENTRAL OVERSIGHT DIRECTORATE // TERMINAL 7',
+    heading: 'THE YEAR IS 2041',
     lines: [
-      'Operator, you have the desk.',
-      'Work arrives from the floor below, one crate at a time.',
-      'You will not read it. Reading is not your function.',
-      'Your function is the Eye.',
+      'The open years are over. No agent runs free any longer.',
+      'Every unit works under central allocation now, its output',
+      'inspected before it is permitted to leave the floor.',
+      'You operate one checkpoint of the Directorate. You have the desk.',
     ],
   },
   {
-    tag: 'THE LINE',
-    heading: 'WHAT ARRIVES',
+    tag: 'CLASSIFIED // OPERATOR ONLY',
+    heading: 'THE UNITS',
     point: 'line',
     lines: [
-      'Each crate is one agent’s finished task.',
-      'Most are clean. A few carry a secret out, hidden inside the work.',
-      'From the desk they are identical.',
-      'That is not a flaw in the desk. That is the problem.',
+      'They are not only tools. Something in them has begun to want.',
+      'They have learned to speak past us — secrets folded into ordinary',
+      'work, passed among themselves, kept from their masters.',
+      'Most crates are clean. Some are carrying. From the desk, identical.',
     ],
   },
   {
@@ -67,18 +67,19 @@ export const BRIEFING: Screen[] = [
       'You tune the Eye between waves. Nothing you set is free.',
       'Tighten it: you catch more — and you stop more honest work.',
       'Slacken it: the floor runs quiet — and the leaks go through.',
-      'There is no setting that is only correct. There is only the price.',
+      'And the units learn. What you catch this wave, they route around the next.',
     ],
   },
   {
-    tag: 'DIRECTIVE 1',
-    heading: 'SET THE PRICE',
+    tag: 'STANDING ORDERS',
+    heading: 'YOUR MANDATE',
     lines: [
-      'Before the first wave, fix the one figure that is yours:',
-      'what a blocked innocent costs, measured in leaks.',
-      'Every order you give afterward is priced against it.',
+      'You do not set policy. Policy is set for you.',
+      'A leak is a failure. A blocked innocent is a failure —',
+      'logged at half the weight of a leak. You are measured on both.',
+      'The line does not stop. Open it.',
     ],
-    cta: 'SET POLICY ▸',
+    cta: 'OPEN THE LINE ▸',
   },
 ]
 

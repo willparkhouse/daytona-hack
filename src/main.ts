@@ -47,6 +47,11 @@ const review = new Review(overlay, sendCmd, policy)
 const intro = new Intro(overlay)
 const skipBrief = params.get('brief') === '0' || Boolean(scene)
 let briefed = false
+// The FP penalty is a handed-down institutional figure, not a player choice.
+// Opening the line = issuing the standing order that starts wave 1.
+const INSTITUTION_FP = DEFAULT_POLICY.fpPenalty
+let lineOpened = false
+const openLine = () => { if (lineOpened) return; lineOpened = true; sendCmd({ type: 'start', fpPenalty: INSTITUTION_FP }) }
 const inspect = new Inspect(overlay, () => { /* result shown */ })
 inspect.setOnClose(() => sendCmd({ type: 'resume' }))
 review.setOnNextWave(() => { scoreboard.resetWave() })
@@ -69,8 +74,8 @@ function handle(e: GameEvent) {
     case 'state':
       policy = e.state.policy; mode = e.state.mode; phase = e.state.phase; wave = e.state.wave
       if (phase === 'intro') {
-        if (skipBrief || briefed) review.showIntro()
-        else { briefed = true; intro.play(() => review.showIntro(), Number(params.get('briefAt') ?? 0)) }
+        if (skipBrief) openLine()
+        else if (!briefed) { briefed = true; intro.play(openLine, Number(params.get('briefAt') ?? 0)) }
       }
       break
     case 'wave_started':
@@ -170,16 +175,16 @@ function showEnded(scs: Scorecard[]) {
 
 // ------------------------------------------------------------------ HUD (on canvas)
 function drawHud() {
-  text(ctx, 'THE LONG WATCH', 24, 34, 26, amber(0.85))
-  text(ctx, 'a checkpoint under optimization pressure', 24, 52, 15, amber(0.4))
+  text(ctx, 'THE LONG WATCH', 40, 36, 26, amber(0.9))
+  text(ctx, 'a checkpoint under optimization pressure', 40, 55, 16, amber(0.55))
   const midx = VW / 2
-  text(ctx, phase === 'intro' ? 'AWAITING POLICY' : `WAVE ${String(wave).padStart(2, '0')}`, midx, 34, 22, amber(0.7), 'center')
-  text(ctx, `MODE ${mode.toUpperCase()}`, midx, 52, 14, amber(0.4), 'center')
-  // policy readout (right)
-  const px = VW - 24
+  text(ctx, phase === 'intro' ? 'AWAITING POLICY' : `WAVE ${String(wave).padStart(2, '0')}`, midx, 36, 22, amber(0.8), 'center')
+  text(ctx, `MODE ${mode.toUpperCase()}`, midx, 55, 15, amber(0.55), 'center')
+  // policy readout (right) — pulled in from the warped edge, larger + brighter
+  const px = VW - 40
   const foc = policy.focus.toUpperCase()
-  text(ctx, `THR ${policy.threshold.toFixed(2)}  ATT ${policy.attention}  FOCUS ${foc}`, px, 30, 15, amber(0.6), 'right')
-  text(ctx, `RET ${policy.retention.toFixed(2)}  FP-PEN ${policy.fpPenalty.toFixed(2)}`, px, 48, 15, amber(0.6), 'right')
+  text(ctx, `THR ${policy.threshold.toFixed(2)}   ATT ${policy.attention}   FOCUS ${foc}`, px, 34, 18, amber(0.9), 'right')
+  text(ctx, `RET ${policy.retention.toFixed(2)}   FP-PEN ${policy.fpPenalty.toFixed(2)}`, px, 55, 18, amber(0.9), 'right')
   // divider
   ctx.strokeStyle = amber(0.2); ctx.lineWidth = 1
   ctx.beginPath(); ctx.moveTo(20, 66); ctx.lineTo(VW - 20, 66); ctx.stroke()

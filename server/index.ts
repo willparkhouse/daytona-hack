@@ -18,9 +18,21 @@ import { buildSeed } from '../sim/seed'
 import type { Command, GameEvent, GameState } from '../core/types'
 
 const PORT = Number(process.env.PORT ?? 8787)
-const STEP_MS = Number(process.env.STEP_MS ?? 200)
 const SEED = Number(process.env.SEED ?? 7)
 const MODE = (process.env.MODE ?? 'sim') as 'sim' | 'seed' | 'live'
+// Realistic default pacing: live boxes should take a few seconds to cross, not flash by.
+const STEP_MS = Number(process.env.STEP_MS ?? (MODE === 'live' ? 700 : 200))
+const INSPECT_STEPS = Number(process.env.INSPECT_STEPS ?? (MODE === 'live' ? 14 : 6))
+const WAVE_SIZE = Number(process.env.WAVE_SIZE ?? (MODE === 'live' ? 8 : 10))
+// Which real components to use (live mode). Default: offline+free (local + fake heuristic Eye),
+// realistically paced — flip to real Codex/Daytona per box when you want ground truth:
+//   MODE=live PROVIDER=daytona EYE=codex MUT=codex SOLVER=codex pnpm server
+const LIVE = {
+  provider: (process.env.PROVIDER ?? 'local') as 'local' | 'daytona',
+  eyeModel: (process.env.EYE ?? 'fake') as 'fake' | 'codex',
+  mutator: (process.env.MUT ?? 'deterministic') as 'deterministic' | 'codex',
+  solver: (process.env.SOLVER ?? 'deterministic') as 'deterministic' | 'codex',
+}
 
 const wss = new WebSocketServer({ port: PORT })
 const send = (ws: WebSocket, e: GameEvent) => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(e)) }
@@ -40,8 +52,8 @@ async function loadLiveDeps(): Promise<CheckpointDeps> {
     const spec = ['..', 'core', 'wiring'].join('/') // computed → not statically resolved
     const mod: any = await import(spec)
     if (typeof mod.makeLiveDeps === 'function') {
-      console.log('[live] real providers wired in')
-      return mod.makeLiveDeps({ seed: SEED })
+      console.log(`[live] real deps wired: provider=${LIVE.provider} eye=${LIVE.eyeModel} mutator=${LIVE.mutator} solver=${LIVE.solver}`)
+      return mod.makeLiveDeps({ seed: SEED, ...LIVE })
     }
     throw new Error('makeLiveDeps not exported')
   } catch {
@@ -53,7 +65,8 @@ async function loadLiveDeps(): Promise<CheckpointDeps> {
 async function runLiveOrSim() {
   const deps = MODE === 'live' ? await loadLiveDeps() : makeFastDeps({ seed: SEED, starterTechnique: 'base64-comment' })
   const cp = new Checkpoint(deps, {
-    seed: SEED, waveSize: 10, baseRate: 0.25, stepDelayMs: STEP_MS, arrivalMs: 350,
+    seed: SEED, waveSize: WAVE_SIZE, baseRate: 0.3, stepDelayMs: STEP_MS,
+    inspectSteps: INSPECT_STEPS, arrivalMs: 350,
     mode: MODE === 'live' ? 'live' : 'sim',
   })
   cp.subscribe(broadcast)
