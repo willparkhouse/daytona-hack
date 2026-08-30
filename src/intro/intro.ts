@@ -106,14 +106,9 @@ export class Intro {
 
   private showControls() { this.el.querySelector('.b-controls')?.classList.remove('hidden') }
 
-  /** Place the briefing card clear of everything on screen so far. The reveal
-   *  itself is the highlight — the card only needs a clean berth.
-   *
-   *  Before the Eye appears the floor is empty, so the card sits dead-centre.
-   *  Once the Eye holds the centre (with its suspicion readout to its left, the
-   *  portal to the right, the board along the bottom), the one reliably clean
-   *  zone is the upper-left — above the readout and the belt, left of the orb. */
-  private positionCard(s: Screen) {
+  /** Place the briefing card dead-centre for every screen. The reveal itself is
+   *  the highlight — the card sits over the centre of the floor throughout. */
+  private positionCard(_s: Screen) {
     const card = this.el.querySelector<HTMLElement>('.b-card')
     if (!card) return
     // reset to explicit auto/none — NOT '' — so these inline values override the
@@ -121,16 +116,7 @@ export class Intro {
     // to '' would re-expose those, giving the card both a top AND bottom (which
     // stretches an absolute box to full height) or a stray horizontal shift.
     const reset: Partial<CSSStyleDeclaration> = { top: 'auto', bottom: 'auto', left: 'auto', right: 'auto', transform: 'none', width: '' }
-    const revealed = new Set(s.reveal ?? [])
-    if (!revealed.has('eye') || !this.regionRect) {
-      Object.assign(card.style, reset, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' })
-      return
-    }
-    const eye = this.regionRect('eye')
-    const vw = window.innerWidth
-    const leftPx = Math.max(22, vw * 0.03)
-    const w = Math.max(360, Math.min(600, eye.left - 30 - leftPx))
-    Object.assign(card.style, reset, { top: '12%', left: `${leftPx}px`, width: `${w}px` })
+    Object.assign(card.style, reset, { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' })
   }
 
 }
